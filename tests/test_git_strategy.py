@@ -197,9 +197,9 @@ class TestResolveTarget:
         assert result == tmp_path
 
     def test_executor_target_fallback(self, tmp_path):
-        """Falls back to executor_config.target when agent has no target."""
-        from nezha.config import AgentConfig, ExecutorConfig
-        agent_cfg = AgentConfig()
+        """Falls back to executor_config.target when coding agent has no target."""
+        from nezha.config import AgentConfig, AgentMeta, ExecutorConfig
+        agent_cfg = AgentConfig(agent=AgentMeta(category="coding"))
         exec_cfg = ExecutorConfig(target=str(tmp_path / "repo"))
         result = _resolve_target(agent_cfg, exec_cfg, tmp_path)
         assert result == tmp_path / "repo"
@@ -215,11 +215,19 @@ class TestResolveTarget:
 
     def test_executor_relative_target_resolved(self, tmp_path):
         """Relative executor target resolves from base_dir."""
-        from nezha.config import AgentConfig, ExecutorConfig
-        agent_cfg = AgentConfig()
+        from nezha.config import AgentConfig, AgentMeta, ExecutorConfig
+        agent_cfg = AgentConfig(agent=AgentMeta(category="coding"))
         exec_cfg = ExecutorConfig(target="my-project")
         result = _resolve_target(agent_cfg, exec_cfg, tmp_path)
         assert result == tmp_path / "my-project"
+
+    def test_planning_agent_ignores_executor_target(self, tmp_path):
+        """Planning agents do NOT fall back to executor target."""
+        from nezha.config import AgentConfig, AgentMeta, ExecutorConfig
+        agent_cfg = AgentConfig(agent=AgentMeta(category="planning"))
+        exec_cfg = ExecutorConfig(target=str(tmp_path / "repo"))
+        result = _resolve_target(agent_cfg, exec_cfg, tmp_path)
+        assert result is None
 
 
 # ---------------------------------------------------------------------------

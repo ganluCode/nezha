@@ -1,0 +1,42 @@
+[project]
+name = "agent-executor"
+version = "0.1.0"
+description = "A configurable AI Agent execution unit with multi-model support"
+requires-python = ">=3.12"
+dependencies = [
+    "claude-code-sdk>=0.0.25",
+    "pyyaml>=6.0",
+    "croniter>=1.3.0",
+    "python-i18n[YAML]>=0.3.9",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+openai = [
+    "openai>=1.0",
+]
+
+[project.scripts]
+nezha = "nezha.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nezha"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/nezha/templates" = "nezha/templates"
+"src/nezha/locales" = "nezha/locales"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.editable]
+packages = ["src/nezha"]

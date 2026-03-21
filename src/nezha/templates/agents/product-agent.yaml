@@ -1,0 +1,59 @@
+# =============================================================================
+# Product Design Agent 配置
+# 输入原始需求 → 输出 PRD + task_list.json + tech_stack.yaml
+# =============================================================================
+
+agent:
+  name: "product-agent"
+  category: "planning"
+  description: "读取需求文档，输出产品规格（PRD、功能清单、技术选型）"
+
+engine:
+  model: "claude-sonnet-4-6"
+  # Uncomment to use a third-party model via proxy:
+  # env:
+  #   ANTHROPIC_BASE_URL: "https://your-proxy.example.com/api/anthropic"
+  #   ANTHROPIC_API_KEY: "your-api-key"
+  max_turns: 200
+  tools:
+    - Read
+    - Write
+    - Edit
+    - Bash
+    - Glob
+    - Grep
+  security:
+    allowed_commands:
+      - ls
+      - cat
+      - head
+      - tail
+      - wc
+      - grep
+      - cp
+      - mkdir
+      - pwd
+
+session:
+  mode: "single_round"
+  prompts:
+    worker: "product/worker.md"
+
+input:
+  type: "file"
+  path: "./input/"
+  files:
+    - "requirements.md"
+
+output:
+  type: "directory"
+  path: "./"
+  git_commit: false
+
+artifacts:
+  - name: "prd"
+    path: "./PRD.md"
+  - name: "task_list"
+    path: "./task_list.json"
+  - name: "tech_stack"
+    path: "./tech_stack.yaml"

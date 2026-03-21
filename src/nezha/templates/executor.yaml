@@ -1,0 +1,52 @@
+# =============================================================================
+# Executor Configuration — starter template
+#
+# User-level defaults (locale, env, timezone, model_map) can be set once in:
+#   ~/.nezha/config.yaml
+# They are automatically merged into this file on `nezha init`.
+# =============================================================================
+
+executor:
+  name: "my-project"
+  description: ""
+
+workspace:
+  base: "./workspace"
+  strategy: "per_agent"   # per_agent | shared
+
+# Path to the code repository (cwd for coding agents).
+# All coding agents share this target unless overridden in their agent YAML.
+# target: "/path/to/your/project"
+
+agents_dir: "./agents"
+prompts_dir: "./prompts"
+state_dir: "./state"
+
+# Language: "en" | "zh_CN" (auto-applied from ~/.nezha/config.yaml)
+# locale: "en"
+
+# Timezone (for cron scheduling, time_window guard, log timestamps)
+# timezone: "Asia/Shanghai"
+
+# Global environment variables (override per-agent if needed)
+# Tip: set these once in ~/.nezha/config.yaml instead of per-project.
+env: {}
+  # ANTHROPIC_API_KEY: "sk-ant-..."
+  # ANTHROPIC_BASE_URL: "https://your-proxy.example.com/v1"   # for 3rd-party / self-hosted
+  # GH_TOKEN: "ghp_xxxxxxxxxxxx"
+
+# Global MCP servers shared by all agents (agent-level config overrides on conflict)
+mcp_servers: {}
+  # filesystem:
+  #   command: "npx"
+  #   args: ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"]
+  # puppeteer:
+  #   command: "npx"
+  #   args: ["puppeteer-mcp-server"]
+  # my-remote:
+  #   url: "http://localhost:8080/sse"
+
+# Scheduler (optional — uncomment to enable continuous mode)
+# scheduler:
+#   mode: "continuous"   # manual | continuous
+#   interval: 60         # seconds between runs

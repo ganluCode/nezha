@@ -1,0 +1,59 @@
+# =============================================================================
+# Coding Agent — starter template
+# Modify this to match your project's needs.
+# =============================================================================
+
+agent:
+  name: "coding-agent"
+  category: "coding"
+  description: "General-purpose coding agent"
+
+engine:
+  model: "claude-sonnet-4-6"
+  max_turns: 100
+  tools:
+    - Read
+    - Write
+    - Edit
+    - Bash
+    - Glob
+    - Grep
+  security:
+    allowed_commands:
+      - ls
+      - cat
+      - git
+      - python
+      - python3
+      - pytest
+      - npm
+      - node
+
+session:
+  mode: "single_round"
+  prompts:
+    worker: "coding/worker.md"
+
+git:
+  branch_per_task: true
+  use_worktree: true
+  base_branch: "main"
+  auto_commit: true
+  auto_push: false
+
+pipeline:
+  # Integration test after all features pass (optional)
+  # post_task_test:
+  #   enabled: true
+  #   command: "pytest"
+  #   max_cycles: 3
+  #   timeout: 600
+
+workspace:
+  path: "./workspace/coding-agent"
+
+# target is set project-wide in executor.yaml.
+# Uncomment below to override for this agent only:
+# target: "/path/to/override"
+# For monorepo: set target_scope to your subdirectory.
+# target_scope: "backend"

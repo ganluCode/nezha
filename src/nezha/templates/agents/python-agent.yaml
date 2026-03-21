@@ -1,0 +1,84 @@
+# =============================================================================
+# Python Agent — Python project coding agent
+# Modify workspace.path and target to match your project.
+# =============================================================================
+
+agent:
+  name: "python-agent"
+  category: "coding"
+  description: "Python coding agent — implements features, fixes bugs, writes tests (pytest + TDD)"
+
+engine:
+  model: "claude-sonnet-4-6"
+  max_turns: 200
+  tools:
+    - Read
+    - Write
+    - Edit
+    - Bash
+    - Glob
+    - Grep
+  security:
+    allowed_commands:
+      # common utilities
+      - ls
+      - cat
+      - find
+      - grep
+      - head
+      - tail
+      - wc
+      - pwd
+      - mkdir
+      - cp
+      - rm
+      - mv
+      - chmod
+      - curl        # for health-check / smoke test
+      - git
+      # python ecosystem
+      - python
+      - python3
+      - pip
+      - pip3
+      - uv
+      - poetry
+      - pdm
+      - pytest
+      - mypy
+      - ruff
+      - black
+      - isort
+
+session:
+  mode: "multi_round"
+  prompts:
+    worker: "python/worker.md"
+    vibe:   "python/vibe.md"
+  # When task_list.json is missing:
+  # - Default: auto-invokes planner-agent to generate it
+  # - With --skip-planner: agent generates its own task_list.json (self-plan mode)
+
+git:
+  branch_per_task: true
+  use_worktree: true
+  base_branch: "main"
+  auto_commit: true
+  auto_push: false
+
+pipeline:
+  # Integration test after all features pass (optional)
+  # post_task_test:
+  #   enabled: true
+  #   command: "pytest tests/integration/ -v"
+  #   max_cycles: 3
+  #   timeout: 600
+
+workspace:
+  path: "./workspace/python-agent"
+
+# target is set project-wide in executor.yaml.
+# Uncomment below to override for this agent only:
+# target: "/path/to/override"
+# For monorepo: set target_scope to your subdirectory.
+# target_scope: "backend"

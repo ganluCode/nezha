@@ -1,0 +1,44 @@
+# =============================================================================
+# Business Analyst Agent 配置
+# 遗留代码业务逆向分析 — 对话模式，结合 Neo4j 代码图谱和文档推导业务逻辑
+# category: management — 无 target，cwd = workspace（存放分析产出文档）
+# =============================================================================
+
+agent:
+  name: "business-analyst-agent"
+  category: "management"
+  callable: false
+  description: "遗留代码业务逆向分析 agent，结合代码图谱（code-analysis MCP）和文档，通过对话逆推屎山业务逻辑"
+
+engine:
+  model: "claude-opus-4-6"
+  env: {}
+  max_turns: 200
+  tools:
+    - Read
+    - Write
+    - Edit
+    - Glob
+    - Grep
+    - Bash
+  security:
+    allowed_commands:
+      - ls
+      - cat
+      - head
+      - tail
+      - find
+      - grep
+      - wc
+
+# MCP 工具由全局 ~/.claude.json 配置（code-analysis 已在其中注册）
+# 无需在此处重复声明 mcp_servers
+
+session:
+  mode: "single_round"        # nezha run 时用（自动化批量分析）
+  prompts:
+    worker: "analyst/worker.md"
+    vibe: "analyst/vibe.md"   # nezha code 时加载（对话模式主入口）
+
+workspace:
+  path: "./workspace/business-analyst-agent"

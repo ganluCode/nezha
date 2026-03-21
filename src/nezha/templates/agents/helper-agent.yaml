@@ -1,0 +1,43 @@
+# =============================================================================
+# Helper Agent 配置
+# 统一控制面板 — 顾问分析 + 操作执行，所有 agent-executor 操作的交互入口
+# category: management — 无 target，cwd = task_workspace
+# =============================================================================
+
+agent:
+  name: "helper-agent"
+  category: "management"
+  callable: true
+  description: "统一控制面板 agent，分析代码、解答问题、提供建议，同时可执行 feature/agent/git 等操作命令"
+
+engine:
+  model: "claude-opus-4-6"
+  env: {}
+  max_turns: 50
+  tools:
+    - Read
+    - Write
+    - Glob
+    - Grep
+    - Bash
+  security:
+    allowed_commands:
+      - ls
+      - cat
+      - head
+      - tail
+      - wc
+      - find
+      - git
+      - nezha
+      - echo
+      - diff
+      - grep
+
+session:
+  mode: "single_round"
+  prompts:
+    worker: "helper/worker.md"
+
+workspace:
+  path: "./workspace/helper-agent"

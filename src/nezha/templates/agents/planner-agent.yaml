@@ -1,0 +1,52 @@
+# =============================================================================
+# Planner Agent 配置
+# 输入需求文档 → 输出 task_list.json
+# callable: true — 可被其他 agent 自动调用
+# =============================================================================
+
+agent:
+  name: "planner-agent"
+  category: "planning"
+  callable: true
+  description: "读取需求文档，生成 task_list.json（DAG 任务清单）"
+
+engine:
+  model: "claude-sonnet-4-6"
+  # Uncomment to use a third-party model via proxy:
+  # env:
+  #   ANTHROPIC_BASE_URL: "https://your-proxy.example.com/api/anthropic"
+  #   ANTHROPIC_API_KEY: "your-api-key"
+  max_turns: 50
+  tools:
+    - Read
+    - Write
+    - Edit
+    - Bash
+    - Glob
+    - Grep
+  security:
+    allowed_commands:
+      - ls
+      - cat
+      - head
+      - grep
+      - mkdir
+
+session:
+  mode: "direct"
+  prompts:
+    worker: "planner/worker.md"
+
+input:
+  type: "file"
+  path: "./input/"
+  # No files list = accept any file from input directory
+
+output:
+  type: "directory"
+  path: "./"
+  git_commit: false
+
+artifacts:
+  - name: "task_list"
+    path: "./task_list.json"

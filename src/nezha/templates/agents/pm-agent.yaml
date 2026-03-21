@@ -1,0 +1,40 @@
+# =============================================================================
+# PM Agent 配置
+# 项目管理 — 创建/管理项目结构、agent 任务、进度审查
+# category: management — 无 target，cwd = task_workspace
+# =============================================================================
+
+agent:
+  name: "pm-agent"
+  category: "management"
+  callable: false
+  description: "项目管理 agent，负责初始化项目、创建 agent 任务、审查进度、更新规范"
+
+engine:
+  model: "claude-opus-4-6"
+  env: {}
+  max_turns: 1000
+  tools:
+    - Read
+    - Write
+    - Edit
+    - Bash
+    - Glob
+    - Grep
+  security:
+    allowed_commands:
+      - ls
+      - cat
+      - mkdir
+      - cp
+      - mv
+      - git
+      - nezha
+
+session:
+  mode: "single_round"
+  prompts:
+    worker: "pm/worker.md"
+
+workspace:
+  path: "./workspace/pm-agent"

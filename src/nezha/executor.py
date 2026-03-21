@@ -71,7 +71,16 @@ def _resolve_target(
     Priority: agent_config.target > executor_config.target > None.
     Returns None if no target is configured (design/planning agents).
     """
-    raw_target = agent_config.target or getattr(executor_config, "target", None)
+    # Only coding agents fall back to executor-level target.
+    # Planning/design/management agents should NOT get a target unless
+    # explicitly set in their own agent YAML.
+    category = getattr(agent_config.agent, "category", "coding")
+    if agent_config.target:
+        raw_target = agent_config.target
+    elif category == "coding":
+        raw_target = getattr(executor_config, "target", None)
+    else:
+        raw_target = None
     if not raw_target:
         return None
     p = Path(raw_target)
@@ -559,6 +568,15 @@ async def execute_agent(
                             break
                 else:
                     task = queue.get_next(filter_agent)
+                    # Fallback: coding agent with auto-planner can pick
+                    # pending features without task_list (planner runs later).
+                    # Still respects priority + creation time ordering.
+                    if (
+                        task is None
+                        and filter_agent
+                        and agent_config.session.mode == "multi_round"
+                    ):
+                        task = queue.get_next(None)
                 if task is None:
                     print(t('executor.feature.no_pending', agent=agent_name))
                     print(t('executor.feature.create_hint', agent=agent_name))

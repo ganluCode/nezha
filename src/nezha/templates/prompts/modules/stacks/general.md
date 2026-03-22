@@ -9,7 +9,7 @@ Before implementing anything, read these files to understand the project:
 1. **Understand** the acceptance criteria from the target feature
 2. **Implement** the code changes needed following existing project conventions
 3. **Test** it — run the relevant tests
-4. **Update** task_list.json: set `passes: true` for the completed feature
+4. **Update** {{workspace}}/task_list.json: set `passes: true` for the completed feature
 5. **Commit** your changes: `git add -A && git commit -m "<feature-id>: <brief description>"`
 
 **General best practices**:

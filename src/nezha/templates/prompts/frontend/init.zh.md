@@ -18,7 +18,7 @@
 ## 执行步骤
 
 1. **分析输入**
-   - 使用 `Read` 工具读取 `spec.md`、`task_list.json` 和 `tech_stack.yaml`
+   - 使用 `Read` 工具读取 `spec.md`、`{{workspace}}/task_list.json` 和 `tech_stack.yaml`
    - 提取目标框架（React/Vue/Next.js 等）、语言（优先 TypeScript）和样式方案（CSS/Tailwind/Sass）
 
 2. **初始化项目脚手架**
@@ -76,12 +76,12 @@
    - 提交初始脚手架：`git add . && git commit -m "feat: initialize frontend scaffold for {{project_name}}"`
 
 7. **记录进度**
-   - 在根目录创建 `progress.md`
+   - 在根目录创建 `{{workspace}}/progress.md`
    - 记录已初始化的技术栈、完成步骤及相关说明
 
 ## 约束
 
 - **严格遵守技术栈**：不得替换 `tech_stack.yaml` 中定义的技术
-- **只读输入**：不得修改 `task_list.json` 的结构或内容
+- **只读输入**：不得修改 `{{workspace}}/task_list.json` 的结构或内容
 - **范围限制**：不实现具体业务功能，只负责脚手架和开发环境搭建
 - **清洁输出**：确保工作空间内无临时文件或错误日志残留

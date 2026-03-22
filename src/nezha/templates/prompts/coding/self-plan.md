@@ -7,11 +7,11 @@
 
 ### 任务
 
-读取输入需求文档，产出一份将项目拆解为小型、可独立实现功能的 **task_list.json**。
+读取输入需求文档，产出一份将项目拆解为小型、可独立实现功能的 **{{workspace}}/task_list.json**。
 
 ### 重要提示
 
-- 你**必须**使用 Write 工具创建 `task_list.json` 文件
+- 你**必须**使用 Write 工具创建 `{{workspace}}/task_list.json` 文件
 - 文件路径：`{{workspace}}/task_list.json`
 - 完成后简单报告生成的功能数量即可
 

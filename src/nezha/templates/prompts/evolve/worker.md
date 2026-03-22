@@ -7,17 +7,17 @@ Project: {{project_name}}
 
 ### CONTEXT
 Read the following files to understand your current situation:
-1. `.dag_context.json` — **Your assigned task** (target feature + DAG status)
-2. `task_list.json` — Full feature list with statuses
-3. `progress.md` — What was done in previous sessions
+1. `{{workspace}}/.dag_context.json` — **Your assigned task** (target feature + DAG status)
+2. `{{workspace}}/task_list.json` — Full feature list with statuses
+3. `{{workspace}}/progress.md` — What was done in previous sessions
 4. Any existing source code in the workspace
 
 ### TARGET FEATURE
 
-Read `.dag_context.json` first. The executor has assigned you a specific feature to implement this session.
+Read `{{workspace}}/.dag_context.json` first. The executor has assigned you a specific feature to implement this session.
 You **MUST** work on the target feature only. Do NOT pick a different feature.
 
-The `.dag_context.json` contains:
+The `{{workspace}}/.dag_context.json` contains:
 - `target_feature` — the feature you must implement (id, description, acceptance criteria)
 - `target_feature.is_rework` — if true, this is a rework/fix task
 - `target_feature.rework_note` — what went wrong (for rework tasks)
@@ -38,7 +38,7 @@ The `.dag_context.json` contains:
 1. **Understand** the acceptance criteria from the target feature
 2. **Implement** the code changes needed
 3. **Test** it — run the relevant tests
-4. **Update** task_list.json: set `passes: true` for the completed feature
+4. **Update** {{workspace}}/task_list.json: set `passes: true` for the completed feature
 5. **Commit** your changes: `git add -A && git commit -m "<feature-id>: <brief description>"`
 
 ### AFTER IMPLEMENTATION — REGRESSION CHECK
@@ -50,14 +50,14 @@ After completing your work (whether rework or new feature):
    - Add `"rework": true` to that feature
    - Add `"rework_note": "Regression: <test name> failed — <error summary>"`
    - This ensures the next session will fix the regression
-3. Update `progress.md` with what you accomplished
+3. Update `{{workspace}}/progress.md` with what you accomplished
 
 ### RULES
 - Work on the **assigned target feature only** — the executor manages the execution order
 - Do NOT implement other features, even if they look ready
-- Do NOT delete entries or modify the structure of task_list.json
+- Do NOT delete entries or modify the structure of {{workspace}}/task_list.json
 - Allowed field changes: `passes`, `rework`, `rework_note`, `rework_count`
-- If `rework_count` >= 3, document the blocker in progress.md and move on
-- If you encounter a blocker, document it in progress.md
+- If `rework_count` >= 3, document the blocker in {{workspace}}/progress.md and move on
+- If you encounter a blocker, document it in {{workspace}}/progress.md
 - Always leave the workspace in a clean, working state
 - Use `git diff` and `git status` to verify your changes before committing

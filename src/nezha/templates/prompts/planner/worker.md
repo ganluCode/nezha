@@ -46,6 +46,18 @@ Every task MUST have a `complexity` field. The system will automatically map com
 
 **Distribution guideline**: In a typical project, aim for roughly **40-50% low, 40-50% medium, ≤10% high**. Most coding tasks are more routine than you think — actively look for opportunities to use `low`. Only mark `high` when the task genuinely requires cross-module reasoning or architectural decisions.
 
+### JSON FORMAT SAFETY RULES
+
+⚠️ **The output JSON MUST be 100% valid**. Common pitfalls and how to avoid them:
+
+1. **Escape double quotes**: Any `"` inside a string value MUST be written as `\"`.
+   - ❌ `"description": "Implement "AI Assistant" feature"` — parse error
+   - ✅ `"description": "Implement 'AI Assistant' feature"` — use single quotes
+   - ✅ `"description": "Implement \"AI Assistant\" feature"` — escape double quotes
+2. **Prefer safe quoting**: When referencing terms in description/acceptance, use single quotes `'...'` or backticks `` `...` `` instead of double quotes
+3. **No trailing commas**: Do NOT add a comma after the last item in an array or object
+4. **Pure JSON**: Do NOT write comments (`//` or `/* */`) in JSON
+
 ### FEATURE DESIGN RULES
 
 1. **Granularity**: Each feature should be completable in ONE coding session (30-60 min of LLM work, ~50 turns)
@@ -127,4 +139,9 @@ When grading complexity, consider: if a task will be executed by a weaker model 
 ```
 
 ### AFTER CREATING THE FILE
-Verify: re-read task_list.json to confirm it is valid JSON and matches the schema above.
+
+Verify: re-read task_list.json and check:
+1. Content is valid JSON (no syntax errors)
+2. All double quotes inside string values are properly escaped or replaced with single quotes
+3. Matches the schema above (every item has id, description, acceptance, depends_on, complexity, passes)
+4. If any format issue is found, **fix and rewrite the file immediately**

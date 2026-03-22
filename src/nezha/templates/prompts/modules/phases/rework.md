@@ -4,7 +4,7 @@
 2. Check `state/traces/` for previous execution history
 3. Fix using a **different approach** from what's in `tried`
 4. Run tests: `{{test_command}}`
-5. If fixed: set `passes: true`, remove `rework` and `rework_note` from task_list.json
+5. If fixed: set `passes: true`, remove `rework` and `rework_note` from {{workspace}}/task_list.json
 6. If still failing: update `rework_note` as JSON:
    ```json
    {

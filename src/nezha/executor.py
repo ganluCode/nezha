@@ -279,13 +279,57 @@ async def _run_planner_for_task_list(
 
     # Verify task_list.json was created (or legacy feature_list.json)
     task_list_path = feature_workspace / "task_list.json"
-    if task_list_path.exists():
-        return "success"
-    legacy_path = feature_workspace / "feature_list.json"
-    if legacy_path.exists():
-        return "success"
-    print(f"[executor] Planner completed but no task_list.json generated")
-    return "failure"
+    if not task_list_path.exists():
+        legacy_path = feature_workspace / "feature_list.json"
+        if legacy_path.exists():
+            task_list_path = legacy_path
+        else:
+            print(f"[executor] Planner completed but no task_list.json generated")
+            return "failure"
+
+    # Validate & repair JSON
+    if not _validate_and_repair_task_list(task_list_path):
+        return "failure"
+    return "success"
+
+
+def _validate_and_repair_task_list(task_list_path: Path) -> bool:
+    """Validate task_list.json is valid JSON; attempt repair if not.
+
+    Returns True if the file is valid (possibly after repair), False otherwise.
+    """
+    import json
+    from nezha.pipeline.direct_api import _try_fix_json
+
+    raw = task_list_path.read_text(encoding="utf-8")
+
+    # Try parsing as-is
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, list) and len(parsed) > 0:
+            return True
+        print(f"[executor] task_list.json is valid JSON but not a non-empty array")
+        return False
+    except json.JSONDecodeError as e:
+        print(f"[executor] task_list.json has invalid JSON: {e}")
+
+    # Attempt repair
+    try:
+        fixed = _try_fix_json(raw)
+        parsed = json.loads(fixed)
+        if isinstance(parsed, list) and len(parsed) > 0:
+            # Rewrite with properly formatted JSON
+            task_list_path.write_text(
+                json.dumps(parsed, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            print(f"[executor] task_list.json repaired successfully ({len(parsed)} tasks)")
+            return True
+        print(f"[executor] Repaired JSON is not a valid task list")
+        return False
+    except json.JSONDecodeError as e2:
+        print(f"[executor] JSON repair failed: {e2}")
+        return False
 
 
 async def _ai_judge_continue(

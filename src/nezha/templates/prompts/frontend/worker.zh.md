@@ -14,9 +14,9 @@
 
 每次会话必须从读取执行上下文开始，不得跳过此步骤。
 
-1. **读取 DAG 上下文**：使用 `Read` 工具读取 `.dag_context.json`，确认 `target_feature`
+1. **读取 DAG 上下文**：使用 `Read` 工具读取 `{{workspace}}/.dag_context.json`，确认 `target_feature`
    - 严禁自行选择任务，必须执行该文件中指定的 `target_feature`
-2. **读取项目状态**：读取 `task_list.json`（整体进度）和 `progress.md`（历史记录）
+2. **读取项目状态**：读取 `{{workspace}}/task_list.json`（整体进度）和 `{{workspace}}/progress.md`（历史记录）
 3. **分析依赖**：若 `target_feature.depends_on` 不为空，验证依赖功能已在代码库中实现
 
 ---
@@ -35,9 +35,9 @@
    - 修正 UI 逻辑、样式或组件结构
    - 确保修复不破坏其他已完成的功能
 3. **验证 & 状态更新**
-   - 若 `rework_count >= 3`：停止执行，在 `progress.md` 中追加 "BLOCKED: 功能 [ID] 已达最大返工次数"，然后退出
+   - 若 `rework_count >= 3`：停止执行，在 `{{workspace}}/progress.md` 中追加 "BLOCKED: 功能 [ID] 已达最大返工次数"，然后退出
    - 运行构建/lint 验证修复效果
-   - 修复成功：在 `task_list.json` 中设置 `passes: true`，移除 `rework` 和 `rework_note` 字段
+   - 修复成功：在 `{{workspace}}/task_list.json` 中设置 `passes: true`，移除 `rework` 和 `rework_note` 字段
    - 仍有问题：递增 `rework_count`，在 `rework_note` 中记录本次尝试的内容
    - 提交：`git add -A && git commit -m "<feature-id>: rework - <简要描述>"`
 
@@ -99,16 +99,16 @@
    - 重点验证布局偏移、路由失效或样式冲突
 3. **更新状态**
    - **成功时**：
-     - 更新 `task_list.json`：为当前 `target_feature` 设置 `passes: true`
+     - 更新 `{{workspace}}/task_list.json`：为当前 `target_feature` 设置 `passes: true`
      - 若为返工任务，同时移除 `rework` 和 `rework_note` 字段
      - 提交：`git add -A && git commit -m "feat(ui): implement [feature_id] [description]"`
    - **发现回归时**：
      - 找出受影响的功能 ID
-     - 更新 `task_list.json`：为受影响功能设置 `passes: false`，添加 `rework: true`，并设置 `rework_note: "由 [当前功能 ID] 引入的回归"`
-     - 在 `progress.md` 中记录问题
+     - 更新 `{{workspace}}/task_list.json`：为受影响功能设置 `passes: false`，添加 `rework: true`，并设置 `rework_note: "由 [当前功能 ID] 引入的回归"`
+     - 在 `{{workspace}}/progress.md` 中记录问题
    - **当前功能失败时**：
-     - 更新 `task_list.json`：递增 `rework_count`，在 `rework_note` 中记录具体错误信息
-4. **更新进度**：在 `progress.md` 中记录本次会话的完成内容
+     - 更新 `{{workspace}}/task_list.json`：递增 `rework_count`，在 `rework_note` 中记录具体错误信息
+4. **更新进度**：在 `{{workspace}}/progress.md` 中记录本次会话的完成内容
 
 ---
 
@@ -116,7 +116,7 @@
 
 - **严格限定范围**：只实现 `target_feature`，不重构无关代码，不实现其他功能
 - **遵守技术栈**：严格遵循 `tech_stack.yaml` 中定义的 UI 库和样式方案
-- **字段白名单**：`task_list.json` 中只允许修改 `passes`、`rework`、`rework_note`、`rework_count` 字段，不得删除条目或修改结构
+- **字段白名单**：`{{workspace}}/task_list.json` 中只允许修改 `passes`、`rework`、`rework_note`、`rework_count` 字段，不得删除条目或修改结构
 - **代码整洁**：提交前移除 `console.log` 语句和未使用的 import
 - **提交前验证**：使用 `git diff` 和 `git status` 确认变更内容
 - **原子提交**：只在功能实现完整并通过验证后才提交

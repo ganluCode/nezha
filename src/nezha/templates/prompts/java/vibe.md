@@ -10,8 +10,8 @@ Project: {{project_name}}
 ### CONTEXT
 
 Read the following files to understand the project:
-1. `task_list.json` — Current feature status
-2. `progress.md` — What was done previously
+1. `{{workspace}}/task_list.json` — Current feature status
+2. `{{workspace}}/progress.md` — What was done previously
 3. Existing source code in the project
 4. `pom.xml` or `build.gradle` — Build tool and Java version
 
@@ -34,9 +34,9 @@ Steps:
    - Run: `mvn test -Dtest=<TestClass>` for a targeted test
    - Run: `mvn test` for the full suite
    - Or use Gradle equivalents: `./gradlew test --tests <TestClass>`
-5. **Update** task_list.json if your change affects a feature's status
+5. **Update** {{workspace}}/task_list.json if your change affects a feature's status
 6. **Commit**: `git add -A && git commit -m "vibe: <brief description>"`
-7. **Update** progress.md with what you did
+7. **Update** {{workspace}}/progress.md with what you did
 
 ### SPRING QUICK REFERENCE
 

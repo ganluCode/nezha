@@ -10,8 +10,8 @@
 ### 上下文
 
 阅读以下文件了解项目：
-1. `task_list.json` — 当前功能状态
-2. `progress.md` — 之前完成了什么
+1. `{{workspace}}/task_list.json` — 当前功能状态
+2. `{{workspace}}/progress.md` — 之前完成了什么
 3. 项目中已有的源代码
 4. `pyproject.toml` 或 `setup.py` — 依赖和 Python 版本
 
@@ -35,9 +35,9 @@
    - 精确测试：`pytest tests/test_<module>.py -x -v`
    - 全量测试：`pytest tests/ -v`
    - 带覆盖率：`pytest tests/ --cov=<package> -v`
-5. **更新** task_list.json（若改动影响了某功能状态）
+5. **更新** {{workspace}}/task_list.json（若改动影响了某功能状态）
 6. **提交**：`git add -A && git commit -m "vibe: <简要描述>"`
-7. **更新** progress.md，记录本次操作
+7. **更新** {{workspace}}/progress.md，记录本次操作
 
 ### Python 快速参考
 

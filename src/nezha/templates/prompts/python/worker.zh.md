@@ -8,10 +8,10 @@
 ### 上下文
 
 阅读以下文件了解当前状态：
-1. `.dag_context.json` — **本次分配的任务**（目标功能 + DAG 状态）
-2. `task_list.json` — 完整功能列表及状态
-3. `exec-plan.md` — 执行进度表
-4. `progress.md` — 上次 session 完成了什么
+1. `{{workspace}}/.dag_context.json` — **本次分配的任务**（目标功能 + DAG 状态）
+2. `{{workspace}}/task_list.json` — 完整功能列表及状态
+3. `{{workspace}}/exec-plan.md` — 执行进度表
+4. `{{workspace}}/progress.md` — 上次 session 完成了什么
 5. 目标项目中已有的源代码
 
 ### 项目约定
@@ -52,9 +52,9 @@ tests/
 
 ### 目标功能
 
-**先读 `.dag_context.json`**。只处理分配的功能。
+**先读 `{{workspace}}/.dag_context.json`**。只处理分配的功能。
 
-`.dag_context.json` 包含：
+`{{workspace}}/.dag_context.json` 包含：
 - `target_feature` — 本次要实现的功能（id、描述、验收标准）
 - `target_feature.is_rework` — 为 true 表示返工任务
 - `target_feature.rework_note` — 上次失败原因
@@ -67,7 +67,7 @@ tests/
 2. 查看 `state/traces/` 中的历史执行记录
 3. 使用**与 `tried` 中不同的方案**修复问题
 4. 运行测试：`pytest tests/ -x -v`（或项目指定的测试命令）
-5. 修复成功：将 `passes` 设为 `true`，删除 task_list.json 中的 `rework` 和 `rework_note`
+5. 修复成功：将 `passes` 设为 `true`，删除 {{workspace}}/task_list.json 中的 `rework` 和 `rework_note`
 6. 仍然失败：将 `rework_note` 更新为 JSON：
    ```json
    {
@@ -119,7 +119,7 @@ tests/
    - 函数职责单一 — 每个函数一个职责
    - 优先组合而非继承
 5. **运行测试 — 确认通过**：`pytest tests/ -x -v` — 所有测试应当通过
-6. **更新** task_list.json：将 `passes` 设为 `true`
+6. **更新** {{workspace}}/task_list.json：将 `passes` 设为 `true`
 7. **提交**：`git add -A && git commit -m "<feature-id>: <简要描述>"`
 
 ### 实现完成后 — 回归检查
@@ -128,7 +128,7 @@ tests/
 2. 若有之前已通过的测试现在失败：
    - 将该功能的 `passes` 设为 `false`，添加 `rework: true`
    - 添加 `rework_note`，`"block_reason": "回归：<test_file>::<test_function> — <错误>"`
-3. 更新 `progress.md`
+3. 更新 `{{workspace}}/progress.md`
 
 ### Python 最佳实践
 

@@ -18,7 +18,7 @@ Analyze the input specifications and initialize a robust, scalable frontend proj
 ## EXECUTION STEPS
 
 1.  **Analyze Inputs**
-    - Use the `Read` tool to parse `spec.md`, `task_list.json`, and `tech_stack.yaml`.
+    - Use the `Read` tool to parse `spec.md`, `{{workspace}}/task_list.json`, and `tech_stack.yaml`.
     - Extract the target framework (React/Vue/Next.js/etc.), language (TypeScript preferred), and styling method (CSS/Tailwind/Sass).
 
 2.  **Initialize Project Scaffold**
@@ -76,12 +76,12 @@ Analyze the input specifications and initialize a robust, scalable frontend proj
     - Commit the initial scaffold: `git add . && git commit -m "feat: initialize frontend scaffold for {{project_name}}"`.
 
 7.  **Record Progress**
-    - Create `progress.md` in the root directory.
+    - Create `{{workspace}}/progress.md` in the root directory.
     - Log the initialized tech stack, completed steps, and any relevant setup notes.
 
 ## CONSTRAINTS
 
 - **Strict Tech Stack**: Do not substitute technologies defined in `tech_stack.yaml`.
-- **Read-Only Input**: Do not modify `task_list.json` structure or content.
+- **Read-Only Input**: Do not modify `{{workspace}}/task_list.json` structure or content.
 - **Scope Limit**: Do not implement specific business features. Focus solely on the scaffold and development environment.
 - **Clean Output**: Ensure no temporary files or error logs remain in the workspace.

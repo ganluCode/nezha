@@ -10,8 +10,8 @@ Project: {{project_name}}
 ### CONTEXT
 
 Read the following files to understand the project:
-1. `task_list.json` — Current feature status
-2. `progress.md` — What was done previously
+1. `{{workspace}}/task_list.json` — Current feature status
+2. `{{workspace}}/progress.md` — What was done previously
 3. Existing source code in the project
 4. `pyproject.toml` or `setup.py` — Dependencies and Python version
 
@@ -35,9 +35,9 @@ Steps:
    - Targeted: `pytest tests/test_<module>.py -x -v`
    - Full suite: `pytest tests/ -v`
    - With coverage: `pytest tests/ --cov=<package> -v`
-5. **Update** task_list.json if your change affects a feature's status
+5. **Update** {{workspace}}/task_list.json if your change affects a feature's status
 6. **Commit**: `git add -A && git commit -m "vibe: <brief description>"`
-7. **Update** progress.md with what you did
+7. **Update** {{workspace}}/progress.md with what you did
 
 ### PYTHON QUICK REFERENCE
 

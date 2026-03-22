@@ -83,7 +83,20 @@ class TaskDAG:
     def load(cls, task_list_path: Path) -> TaskDAG:
         """Load from a task_list.json file."""
         with open(task_list_path, encoding="utf-8") as f:
-            raw_list = json.load(f)
+            raw_text = f.read()
+        try:
+            raw_list = json.loads(raw_text)
+        except json.JSONDecodeError:
+            # Attempt repair via _try_fix_json
+            from nezha.pipeline.direct_api import _try_fix_json
+            fixed = _try_fix_json(raw_text)
+            raw_list = json.loads(fixed)  # let it raise if still broken
+            # Rewrite the repaired file
+            task_list_path.write_text(
+                json.dumps(raw_list, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            print(f"[DAG] Repaired invalid JSON in {task_list_path.name}")
 
         tasks = []
         for item in raw_list:

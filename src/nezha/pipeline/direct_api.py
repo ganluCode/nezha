@@ -155,9 +155,68 @@ import json
 
 
 def _try_fix_json(text: str) -> str:
-    """Try to fix common JSON formatting issues."""
-    # Remove trailing commas before ] or }
+    """Try to fix common JSON formatting issues from LLM output.
+
+    Handles:
+    - Trailing commas before } or ]
+    - Unescaped double quotes inside JSON string values
+    - JavaScript-style comments
+    """
+    # 1. Remove single-line comments (// ...)
+    text = re.sub(r'//[^\n]*', '', text)
+    # 2. Remove multi-line comments (/* ... */)
+    text = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
+    # 3. Remove trailing commas before ] or }
     text = re.sub(r",\s*([}\]])", r"\1", text)
+    # 4. Fix unescaped double quotes inside string values.
+    text = _fix_unescaped_quotes(text)
+    return text
+
+
+def _fix_unescaped_quotes(text: str) -> str:
+    """Fix unescaped double quotes inside JSON string values.
+
+    Uses an error-driven iterative approach:
+    1. Try to parse JSON
+    2. On error, find the " that prematurely ended a string value
+    3. Replace it with a Chinese bracket quote「or」
+    4. Repeat until valid or unfixable
+    """
+    try:
+        json.loads(text)
+        return text
+    except json.JSONDecodeError:
+        pass
+
+    use_open = True  # alternate 「 and 」
+    max_attempts = 100  # safety limit
+
+    for _ in range(max_attempts):
+        try:
+            json.loads(text)
+            return text
+        except json.JSONDecodeError as e:
+            # The parser hit unexpected content after what it thought was
+            # a complete string. The " just before the error position
+            # is the inner quote that prematurely ended the string.
+            pos = e.pos
+            # Scan backwards from error position to find the problematic "
+            i = pos - 1
+            while i >= 0 and text[i] in ' \t\n\r':
+                i -= 1
+            if i < 0 or text[i] != '"':
+                break  # Can't fix this error type
+
+            # Safety check: the content after this " should look like
+            # unescaped inner text, not a structural issue (missing comma).
+            after_content = text[pos:].lstrip()
+            if after_content and after_content[0] in ':}]':
+                break  # Structural issue, not an unescaped quote
+
+            replacement = '「' if use_open else '」'
+            text = text[:i] + replacement + text[i + 1:]
+            use_open = not use_open
+
     return text
 
 

@@ -1,6 +1,6 @@
 ### QUALITY TRACKING
 
-After each session, update `progress.md` with:
+After each session, update `{{workspace}}/progress.md` with:
 1. What was accomplished this session (feature ID + brief description)
 2. Any issues encountered or decisions made
 3. Current state of tests (passing/failing)

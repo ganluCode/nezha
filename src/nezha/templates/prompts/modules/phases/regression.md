@@ -4,4 +4,4 @@
 2. If a previously passing test now fails:
    - Set that feature's `passes` to `false`, add `rework: true`
    - Add `rework_note` with `"block_reason": "Regression: <test name> — <error>"`
-3. Update `progress.md`
+3. Update `{{workspace}}/progress.md`

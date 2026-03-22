@@ -14,9 +14,9 @@ Project: `{{project_name}}`
 
 You must start every session by reading the execution context. Do not skip this step.
 
-1.  **Read DAG Context**: Use `Read` on `.dag_context.json` to identify the `target_feature`.
+1.  **Read DAG Context**: Use `Read` on `{{workspace}}/.dag_context.json` to identify the `target_feature`.
     *   You are strictly prohibited from choosing your own task. You must execute the `target_feature` specified in this file.
-2.  **Read Project State**: Read `task_list.json` to understand overall progress and `progress.md` for historical context.
+2.  **Read Project State**: Read `{{workspace}}/task_list.json` to understand overall progress and `{{workspace}}/progress.md` for historical context.
 3.  **Analyze Dependencies**: If `target_feature.depends_on` is not empty, verify the dependent features are already implemented in the codebase.
 
 ---
@@ -35,9 +35,9 @@ Follow the path determined by `target_feature.is_rework`.
     *   Correct the UI logic, styling, or component structure.
     *   Ensure the fix does not break other parts of the layout.
 3.  **Verification & State Update**:
-    *   If `rework_count >= 3`: Stop. Append "BLOCKED: Max rework attempts reached for [ID]" to `progress.md` and exit.
+    *   If `rework_count >= 3`: Stop. Append "BLOCKED: Max rework attempts reached for [ID]" to `{{workspace}}/progress.md` and exit.
     *   Run the build/lint process to verify the fix.
-    *   If fixed: set `passes: true`, remove `rework` and `rework_note` fields from task_list.json.
+    *   If fixed: set `passes: true`, remove `rework` and `rework_note` fields from {{workspace}}/task_list.json.
     *   If still failing: increment `rework_count`, update `rework_note` with what you tried.
     *   Commit: `git add -A && git commit -m "<feature-id>: rework - <brief description>"`.
 
@@ -99,16 +99,16 @@ After implementation (for both Rework and New Feature), you must perform a compr
     *   Specifically verify layout shifts, broken routes, or style conflicts.
 3.  **Update State**:
     *   **If Success**:
-        *   Update `task_list.json`: Set `passes: true` for the current `target_feature`.
+        *   Update `{{workspace}}/task_list.json`: Set `passes: true` for the current `target_feature`.
         *   If this was a rework task: also remove `rework` and `rework_note` fields.
         *   Commit: `git add -A && git commit -m "feat(ui): implement [feature_id] [description]"`.
     *   **If Regression Found**:
         *   Identify the broken feature ID.
-        *   Update `task_list.json`: Set `passes: false` for the broken feature, add `rework: true`, and set `rework_note: "Regression caused by [Current Feature ID]"`.
-        *   Log the issue in `progress.md`.
+        *   Update `{{workspace}}/task_list.json`: Set `passes: false` for the broken feature, add `rework: true`, and set `rework_note: "Regression caused by [Current Feature ID]"`.
+        *   Log the issue in `{{workspace}}/progress.md`.
     *   **If Current Feature Fails**:
-        *   Update `task_list.json`: Increment `rework_count`, update `rework_note` with the specific error message.
-4.  **Update Progress**: Update `progress.md` with what you accomplished this session.
+        *   Update `{{workspace}}/task_list.json`: Increment `rework_count`, update `rework_note` with the specific error message.
+4.  **Update Progress**: Update `{{workspace}}/progress.md` with what you accomplished this session.
 
 ---
 
@@ -116,7 +116,7 @@ After implementation (for both Rework and New Feature), you must perform a compr
 
 *   **Strict Scope**: Implement **only** the `target_feature`. Do not refactor unrelated code or implement other features.
 *   **Tech Stack Compliance**: Adhere strictly to the UI library and styling method defined in `tech_stack.yaml`.
-*   **Field Whitelist**: Only modify these fields in task_list.json: `passes`, `rework`, `rework_note`, `rework_count`. Do NOT delete entries or modify the structure.
+*   **Field Whitelist**: Only modify these fields in {{workspace}}/task_list.json: `passes`, `rework`, `rework_note`, `rework_count`. Do NOT delete entries or modify the structure.
 *   **Clean Code**: Remove `console.log` statements and unused imports before committing.
 *   **Verify Before Commit**: Use `git diff` and `git status` to verify your changes before committing.
 *   **Atomic Commits**: Commit only when the specific feature implementation is complete and verified.

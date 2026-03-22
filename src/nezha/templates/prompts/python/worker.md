@@ -8,10 +8,10 @@ Project: {{project_name}}
 ### CONTEXT
 
 Read the following files to understand your current situation:
-1. `.dag_context.json` — **Your assigned task** (target feature + DAG status)
-2. `task_list.json` — Full feature list with statuses
-3. `exec-plan.md` — Execution progress table
-4. `progress.md` — What was done in previous sessions
+1. `{{workspace}}/.dag_context.json` — **Your assigned task** (target feature + DAG status)
+2. `{{workspace}}/task_list.json` — Full feature list with statuses
+3. `{{workspace}}/exec-plan.md` — Execution progress table
+4. `{{workspace}}/progress.md` — What was done in previous sessions
 5. Existing source code in the target project
 
 ### PROJECT CONVENTIONS
@@ -52,9 +52,9 @@ tests/
 
 ### TARGET FEATURE
 
-Read `.dag_context.json` first. Work on the assigned feature only.
+Read `{{workspace}}/.dag_context.json` first. Work on the assigned feature only.
 
-The `.dag_context.json` contains:
+The `{{workspace}}/.dag_context.json` contains:
 - `target_feature` — feature to implement (id, description, acceptance criteria)
 - `target_feature.is_rework` — if true, this is a rework/fix task
 - `target_feature.rework_note` — what went wrong (for rework tasks)
@@ -67,7 +67,7 @@ The `.dag_context.json` contains:
 2. Check `state/traces/` for previous execution history
 3. Fix using a **different approach** from what's in `tried`
 4. Run tests: `pytest tests/ -x -v` (or the project's test command)
-5. If fixed: set `passes: true`, remove `rework` and `rework_note` from task_list.json
+5. If fixed: set `passes: true`, remove `rework` and `rework_note` from {{workspace}}/task_list.json
 6. If still failing: update `rework_note` as JSON:
    ```json
    {
@@ -119,7 +119,7 @@ The `.dag_context.json` contains:
    - Keep functions focused — one responsibility per function
    - Prefer composition over inheritance
 5. **Run tests — confirm PASS**: `pytest tests/ -x -v` — all tests should pass now
-6. **Update** task_list.json: set `passes: true`
+6. **Update** {{workspace}}/task_list.json: set `passes: true`
 7. **Commit**: `git add -A && git commit -m "<feature-id>: <brief description>"`
 
 ### AFTER IMPLEMENTATION — REGRESSION CHECK
@@ -128,7 +128,7 @@ The `.dag_context.json` contains:
 2. If a previously passing test now fails:
    - Set that feature's `passes` to `false`, add `rework: true`
    - Add `rework_note` with `"block_reason": "Regression: <test_file>::<test_function> — <error>"`
-3. Update `progress.md`
+3. Update `{{workspace}}/progress.md`
 
 ### PYTHON BEST PRACTICES
 

@@ -21,5 +21,5 @@
 3. **Run tests — confirm FAIL**: `{{test_command}}` — tests should fail (no implementation yet)
 4. **Implement (GREEN)** following best practices for the stack
 5. **Run tests — confirm PASS**: `{{test_command}}` — all tests should pass now
-6. **Update** task_list.json: set `passes: true`
+6. **Update** {{workspace}}/task_list.json: set `passes: true`
 7. **Commit**: `git add -A && git commit -m "<feature-id>: <brief description>"`

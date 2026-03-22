@@ -8,7 +8,7 @@ Project: {{project_name}}
 ### TASKS
 1. Read ALL input files carefully to understand:
    - The project requirements (spec.md or PRD)
-   - The feature list (task_list.json) — this is your task tracker
+   - The feature list ({{workspace}}/task_list.json) — this is your task tracker
    - The tech stack (tech_stack.yaml) — use these technologies
 2. Initialize the project:
    - Create the project directory structure
@@ -16,12 +16,12 @@ Project: {{project_name}}
    - Install dependencies
    - Create a basic "hello world" that proves the stack works
 3. Initialize git: `git init && git add -A && git commit -m "Initial project setup"`
-4. Create `progress.md` with:
+4. Create `{{workspace}}/progress.md` with:
    - What you set up
-   - Which features from task_list.json are ready to work on next
+   - Which features from {{workspace}}/task_list.json are ready to work on next
 
 ### RULES
 - Do exactly what the spec asks for, nothing more
 - Use the technologies specified in tech_stack.yaml
-- Do NOT modify or delete entries in task_list.json — only change `passes` from false to true
+- Do NOT modify or delete entries in {{workspace}}/task_list.json — only change `passes` from false to true
 - Leave the workspace clean and ready for the next coding session

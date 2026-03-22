@@ -7,9 +7,9 @@ Project: {{project_name}}
 
 ### TARGET TASK
 
-Read `.dag_context.json` first. Work on the assigned task only.
+Read `{{workspace}}/.dag_context.json` first. Work on the assigned task only.
 
-The `.dag_context.json` contains:
+The `{{workspace}}/.dag_context.json` contains:
 - `target_feature` — task to implement (id, description, acceptance criteria)
 - `target_feature.is_rework` — if true, this is a rework/fix task
 - `target_feature.rework_note` — what went wrong (for rework tasks)

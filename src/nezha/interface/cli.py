@@ -1186,7 +1186,7 @@ def cmd_init(project_dir: str):
     print()
     print("  Claude Code integration:")
     print(f"    cd {name} && claude     # Launch Claude Code with skills")
-    print("    Type / to see available skills (/status, /prd, /review, ...)")
+    print("    Type / to see available skills (/overview, /prd, /review, ...)")
     print()
     print("  To regenerate Claude Code config later:")
     print(f"    nezha init {name}  # Re-run on existing project")
@@ -1488,7 +1488,7 @@ You are working in the project configuration directory.
 Type `/` to see all available skills. Key skills:
 
 **Core Workflow:**
-- `/status` — View project execution status
+- `/overview` — View project execution status
 - `/feature-list` — List all features and their status
 - `/feature-show <id>` — Show feature details
 - `/create-feature <title>` — Create a new feature
@@ -1532,7 +1532,7 @@ nezha project init                            # Init project knowledge
 
 _SKILL_STATUS = """\
 ---
-name: status
+name: overview
 description: View nezha project execution status and feature overview
 user-invocable: true
 ---
@@ -2023,7 +2023,7 @@ _CLAUDE_MD_PROJECT_TEMPLATE_ZH = """\
 输入 `/` 查看所有可用技能。主要技能：
 
 **核心工作流：**
-- `/status` — 查看项目执行状态
+- `/overview` — 查看项目执行状态
 - `/feature-list` — 列出所有 feature 及状态
 - `/feature-show <id>` — 查看 feature 详情
 - `/create-feature <标题>` — 创建新 feature
@@ -2067,7 +2067,7 @@ nezha project init                            # 初始化项目知识库
 
 _SKILL_STATUS_ZH = """\
 ---
-name: status
+name: overview
 description: 查看 nezha 项目执行状态和 feature 概览
 user-invocable: true
 ---
@@ -2607,7 +2607,7 @@ argument-hint: [PRD 文件或目录]
 
 # All skills: (directory_name, en_content, zh_content)
 _SKILLS = [
-    ("status", _SKILL_STATUS, _SKILL_STATUS_ZH),
+    ("overview", _SKILL_STATUS, _SKILL_STATUS_ZH),
     ("feature-list", _SKILL_FEATURE_LIST, _SKILL_FEATURE_LIST_ZH),
     ("feature-show", _SKILL_FEATURE_SHOW, _SKILL_FEATURE_SHOW_ZH),
     ("create-feature", _SKILL_CREATE_FEATURE, _SKILL_CREATE_FEATURE_ZH),

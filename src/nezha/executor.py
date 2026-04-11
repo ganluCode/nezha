@@ -149,7 +149,7 @@ def _git_commit(target: Path, task_id: str, env: dict[str, str] | None = None) -
     if result.returncode == 0:
         print(t('executor.git.no_changes'))
         return
-    msg = f"feat: task {task_id} completed by agent-executor"
+    msg = f"feat: task {task_id} completed by nezha"
     subprocess.run(["git", "commit", "-m", msg], cwd=target, check=False, env=git_env)
     print(t('executor.git.commit', msg=msg))
 

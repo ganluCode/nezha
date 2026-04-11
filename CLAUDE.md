@@ -229,4 +229,4 @@ python -m pytest tests/                               # 验证
 - `_slugify()` 只保留 ASCII `[a-z0-9_\s-]`，中文/特殊字符被过滤；Feature title 保留原始文本供显示
 - AI Judge 支持 `judge_api_type: "anthropic" | "openai"`，OpenAI 兼容 API（GLM/Kimi/MiniMax）通过 `judge_env` 配置 base_url/api_key
 - `.env` 文件支持（python-dotenv）：敏感配置放 `.env`，YAML 中用 `${VAR}` 引用；`nezha init` 自动生成 `.env.example`
-- 全局配置目录已从 `~/.agent-exec/` 改为 `~/.nezha/`
+- 全局配置目录使用 `~/.nezha/`

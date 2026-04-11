@@ -28,7 +28,7 @@ class GitTool:
     # ------------------------------------------------------------------
 
     def _commit(self, cwd: Path, params: dict) -> ToolResult:
-        message = params.get("message", "chore: auto-commit by agent-executor")
+        message = params.get("message", "chore: auto-commit by nezha")
         try:
             # Stage all changes
             result = subprocess.run(
@@ -79,7 +79,7 @@ class GitTool:
             return ToolResult(success=False, error=str(e))
 
     def _create_pr(self, cwd: Path, params: dict) -> ToolResult:
-        title = params.get("title", "Auto PR by agent-executor")
+        title = params.get("title", "Auto PR by nezha")
         body = params.get("body", "")
         base = params.get("base", "main")
         try:

@@ -1059,12 +1059,12 @@ cmd_task_push = cmd_feature_push
 
 
 # ---------------------------------------------------------------------------
-# Init command — scaffold a new agent-executor project
+# Init command — scaffold a new nezha project
 # ---------------------------------------------------------------------------
 
 
 def cmd_init(project_dir: str):
-    """Scaffold a new agent-executor project directory.
+    """Scaffold a new nezha project directory.
 
     Creates:
       <project_dir>/

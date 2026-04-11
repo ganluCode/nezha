@@ -317,9 +317,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to executor config file",
     )
 
-    # init command — scaffold a new agent-executor project
+    # init command — scaffold a new nezha project
     init_parser = subparsers.add_parser(
-        "init", help="Scaffold a new agent-executor project directory",
+        "init", help="Scaffold a new nezha project directory",
     )
     init_parser.add_argument(
         "project_dir",

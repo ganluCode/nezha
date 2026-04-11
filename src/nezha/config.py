@@ -22,7 +22,7 @@ class ComposeConfig:
 
 @dataclass
 class ExecutorMeta:
-    name: str = "agent-executor"
+    name: str = "nezha"
     description: str = ""
 
 

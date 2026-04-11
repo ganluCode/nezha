@@ -192,7 +192,7 @@ en:
       created: "  Created:"
       env_warnings: "  Environment warnings:"
       warn_agent_exec: "  \u26a0  'nezha' not in PATH. Add to ~/.zshrc:\n       export PATH=\"%{dir}:$PATH\"\n     Then: source ~/.zshrc"
-      warn_agent_exec_notfound: "  \u26a0  'nezha' not found. Re-install: pip install -e <agent-executor-path>"
+      warn_agent_exec_notfound: "  \u26a0  'nezha' not found. Re-install: pip install -e <nezha-path>"
       warn_claude: "  \u26a0  'claude' CLI not found (needed for 'nezha code').\n     Install: https://claude.ai/download"
       next_steps: "  Next steps:"
       next_cd: "    cd %{name}"

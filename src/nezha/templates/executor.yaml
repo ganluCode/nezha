@@ -33,7 +33,8 @@ state_dir: "./state"
 env: {}
   # ANTHROPIC_API_KEY: "sk-ant-..."
   # ANTHROPIC_BASE_URL: "https://your-proxy.example.com/v1"   # for 3rd-party / self-hosted
-  # GH_TOKEN: "ghp_xxxxxxxxxxxx"
+  # GH_TOKEN: "ghp_xxxxxxxxxxxx"       # GitHub — required for create-pr on github.com
+  # GITEE_TOKEN: "your_gitee_token"    # Gitee  — required for create-pr on gitee.com (auto-detected from remote URL)
 
 # Global MCP servers shared by all agents (agent-level config overrides on conflict)
 mcp_servers: {}

@@ -1059,6 +1059,219 @@ cmd_task_push = cmd_feature_push
 
 
 # ---------------------------------------------------------------------------
+# Phase commands — batch feature orchestration
+# ---------------------------------------------------------------------------
+
+
+def cmd_phase_plan(
+    phase_file: str,
+    base_branch: str = "main",
+    skip_planner: bool = False,
+    config_path: str = "executor.yaml",
+) -> str:
+    """Create features from a phase YAML file.
+
+    Returns the phase ID.
+    """
+    import asyncio
+    from nezha.phase import plan_phase
+
+    phase_path = Path(phase_file).resolve()
+    if not phase_path.exists():
+        print(f"[phase] File not found: {phase_path}")
+        return ""
+
+    try:
+        phase = asyncio.run(plan_phase(
+            phase_input_path=phase_path,
+            config_path=config_path,
+            base_branch=base_branch,
+            skip_planner=skip_planner,
+        ))
+    except ValueError as e:
+        print(f"[phase] Validation error: {e}")
+        return ""
+
+    print(f"\n  View status: nezha phase show {phase.id}")
+    if phase.agent:
+        print(f"  Execute:     nezha run {phase.agent}")
+    else:
+        print(f"  Execute:     nezha run <agent>")
+
+    return phase.id
+
+
+def cmd_phase_show(
+    phase_id: str,
+    config_path: str = "executor.yaml",
+):
+    """Show phase status with ASCII DAG tree."""
+    from nezha.feature_queue import FeatureStatus, FileFeatureQueue
+    from nezha.phase import FilePhaseStore
+
+    workspace_base = _resolve_workspace_base(config_path)
+    store = FilePhaseStore(workspace_base)
+    phase = store.get(phase_id)
+
+    if phase is None:
+        print(f"[phase] Phase not found: {phase_id}")
+        return
+
+    queue = FileFeatureQueue(workspace_base)
+
+    # Gather feature statuses
+    status_icons = {
+        "pending": "·",
+        "running": "►",
+        "paused": "‖",
+        "completed": "✓",
+        "partial": "△",
+        "failed": "✗",
+    }
+
+    feature_statuses: dict[str, str] = {}
+    for ref in phase.features:
+        feat = queue.get(ref.feature_id)
+        if feat:
+            feature_statuses[ref.step_id] = feat.status.value
+        else:
+            feature_statuses[ref.step_id] = "unknown"
+
+    # Build children map for tree rendering
+    children: dict[str, list[str]] = {ref.step_id: [] for ref in phase.features}
+    has_parent: set[str] = set()
+    for ref in phase.features:
+        for dep in ref.depends_on:
+            if dep in children:
+                children[dep].append(ref.step_id)
+                has_parent.add(ref.step_id)
+
+    roots = [ref.step_id for ref in phase.features if ref.step_id not in has_parent]
+
+    # Lookup map
+    ref_map = {ref.step_id: ref for ref in phase.features}
+
+    # Print header
+    print(f"\nPhase: {phase.id} — \"{phase.title}\"")
+    print(f"Status: {phase.status.value}")
+    print("═" * 50)
+
+    # Render tree (DFS with indentation)
+    rendered: set[str] = set()
+
+    def render_node(step_id: str, prefix: str = "", is_root: bool = True):
+        ref = ref_map.get(step_id)
+        if not ref:
+            return
+        status = feature_statuses.get(step_id, "?")
+        icon = status_icons.get(status, "?")
+
+        is_ref = step_id in rendered
+        rendered.add(step_id)
+
+        label = f"[{icon}] {ref.title}"
+        if is_ref:
+            label += " (ref)"
+
+        print(f"{prefix}{label}")
+
+        if is_ref:
+            return
+
+        child_list = children.get(step_id, [])
+        for i, child in enumerate(child_list):
+            is_child_last = (i == len(child_list) - 1)
+            connector = "└── " if is_child_last else "├── "
+            continuation = "    " if is_child_last else "│   "
+            render_node(child, prefix + connector, False)
+            # Update prefix for grandchildren (replace connector with continuation)
+
+    def render_tree(step_id: str, prefix: str = "  "):
+        """Render a node and its children with proper tree connectors."""
+        ref = ref_map.get(step_id)
+        if not ref:
+            return
+        status = feature_statuses.get(step_id, "?")
+        icon = status_icons.get(status, "?")
+
+        is_ref = step_id in rendered
+        rendered.add(step_id)
+
+        label = f"[{icon}] {ref.title}"
+        if is_ref:
+            label += " (ref)"
+
+        print(f"{prefix}{label}")
+
+        if is_ref:
+            return
+
+        child_list = children.get(step_id, [])
+        for i, child in enumerate(child_list):
+            is_child_last = (i == len(child_list) - 1)
+            connector = "└── " if is_child_last else "├── "
+            extension = "    " if is_child_last else "│   "
+            render_tree(child, prefix + connector)
+            # For deeper nodes, swap connector with extension in prefix
+
+    # Simpler approach: flatten to lines
+    rendered.clear()
+    lines: list[str] = []
+
+    def collect(step_id: str, prefix: str, child_prefix: str):
+        ref = ref_map.get(step_id)
+        if not ref:
+            return
+        status = feature_statuses.get(step_id, "?")
+        icon = status_icons.get(status, "?")
+        is_ref = step_id in rendered
+        rendered.add(step_id)
+        suffix = " (ref)" if is_ref else ""
+        lines.append(f"{prefix}[{icon}] {ref.title}{suffix}")
+        if is_ref:
+            return
+        child_list = children.get(step_id, [])
+        for i, child in enumerate(child_list):
+            is_last = (i == len(child_list) - 1)
+            conn = "└── " if is_last else "├── "
+            ext = "    " if is_last else "│   "
+            collect(child, child_prefix + conn, child_prefix + ext)
+
+    for root in roots:
+        collect(root, "  ", "  ")
+
+    for line in lines:
+        print(line)
+
+    # Summary
+    counts: dict[str, int] = {}
+    for s in feature_statuses.values():
+        counts[s] = counts.get(s, 0) + 1
+    summary_parts = [f"{status_icons.get(s, '?')}{c}" for s, c in sorted(counts.items())]
+    print(f"\nFeatures: {len(phase.features)} | {' '.join(summary_parts)}")
+
+
+def cmd_phase_list(config_path: str = "executor.yaml"):
+    """List all phases."""
+    from nezha.phase import FilePhaseStore
+
+    workspace_base = _resolve_workspace_base(config_path)
+    store = FilePhaseStore(workspace_base)
+    phases = store.list_phases()
+
+    if not phases:
+        print("[phase] No phases found")
+        return
+
+    # Table header
+    print(f"\n{'ID':<40} {'STATUS':<12} {'FEATURES':<10} {'TITLE'}")
+    print("-" * 90)
+
+    for phase in phases:
+        print(f"{phase.id:<40} {phase.status.value:<12} {len(phase.features):<10} {phase.title}")
+
+
+# ---------------------------------------------------------------------------
 # Init command — scaffold a new nezha project
 # ---------------------------------------------------------------------------
 
@@ -1510,6 +1723,7 @@ Type `/` to see all available skills. Key skills:
 - `/rollback <feature-id>` — Rollback changes from failed feature
 - `/test-report [cmd]` — Run tests and analyze results
 - `/batch-features [prds]` — Create chained features from multiple PRDs
+- `/phase-plan [prds]` — Generate phase.yaml from PRDs and create features with dependency DAG
 
 ## CLI Reference
 
@@ -2045,6 +2259,7 @@ _CLAUDE_MD_PROJECT_TEMPLATE_ZH = """\
 - `/rollback <feature-id>` — 回滚失败 feature 的变更
 - `/test-report [命令]` — 运行测试并分析结果
 - `/batch-features [PRD文件]` — 从多个 PRD 创建链式 feature
+- `/phase-plan [PRD文件]` — 从 PRD 生成 phase.yaml 并创建带依赖 DAG 的 feature
 
 ## CLI 命令参考
 
@@ -2605,6 +2820,180 @@ argument-hint: [PRD 文件或目录]
 - Continuous 调度器按优先级/创建顺序自动执行
 """
 
+_SKILL_PHASE_PLAN = """\
+---
+name: phase-plan
+description: Generate phase.yaml from PRDs and batch-create features with dependency DAG
+user-invocable: true
+argument-hint: [prd files or directory]
+---
+
+## Available PRD Documents
+
+!`ls workspace/project/prds/ 2>/dev/null`
+
+## Current Phases
+
+!`nezha phase list`
+
+## Current Features
+
+!`nezha feature list`
+
+## Instructions
+
+Generate a `phase.yaml` file from PRD documents, then run `nezha phase plan` to batch-create features with dependency DAG and auto-run planner.
+
+### Step 1: Analyze PRDs
+
+Read the PRD files from `$ARGUMENTS` (or `workspace/project/prds/` if not specified). Identify:
+- What features need to be built
+- What order/dependencies between them (which feature depends on which)
+- Priority level for each
+
+### Step 2: Generate phase.yaml
+
+Write a `phase.yaml` file with this format:
+
+```yaml
+title: "<phase title from PRD>"
+base_branch: main
+agent: <coding-agent-name>   # check agents/ directory
+
+features:
+  - id: <short-id>           # lowercase, hyphens, ASCII only
+    title: "<human readable>"
+    priority: 90              # 0-100, higher = runs first
+    input:
+      - <path-to-prd-file>   # relative to phase.yaml location
+
+  - id: <short-id>
+    title: "<human readable>"
+    depends_on: [<upstream-id>]
+    priority: 80
+    input:
+      - <path-to-prd-file>
+```
+
+**Rules:**
+- `id` must be unique within the phase, ASCII-only (e.g. `db-schema`, `user-auth`)
+- `depends_on` references other feature `id`s in the same phase
+- Must form a valid DAG (no cycles)
+- Root features (no dependencies) get highest priority
+- Last feature should be integration/E2E test depending on all others
+- `input` paths are relative to the phase.yaml file location
+
+### Step 3: Confirm with user
+
+Show the generated phase.yaml and the dependency graph to the user. Ask for confirmation.
+
+### Step 4: Execute
+
+```bash
+# Create features + run planner
+nezha phase plan phase.yaml
+
+# Or without planner (just create features)
+nezha phase plan phase.yaml --skip-planner
+```
+
+### Step 5: Review
+
+```bash
+nezha phase show <phase-id>    # Check DAG structure
+nezha feature list              # Check all features created
+```
+
+Then the user can review each task_list.json before running `nezha run <agent>`.
+"""
+
+_SKILL_PHASE_PLAN_ZH = """\
+---
+name: phase-plan
+description: 从 PRD 生成 phase.yaml 并批量创建带依赖 DAG 的 feature
+user-invocable: true
+argument-hint: [PRD 文件或目录]
+---
+
+## 可用 PRD 文档
+
+!`ls workspace/project/prds/ 2>/dev/null`
+
+## 当前 Phase
+
+!`nezha phase list`
+
+## 当前 Feature
+
+!`nezha feature list`
+
+## 指引
+
+从 PRD 文档生成 `phase.yaml` 文件，然后运行 `nezha phase plan` 批量创建带依赖 DAG 的 feature 并自动跑 planner。
+
+### 第 1 步：分析 PRD
+
+读取 `$ARGUMENTS` 中的 PRD 文件（未指定则读取 `workspace/project/prds/`）。分析：
+- 需要构建哪些功能
+- 功能之间的依赖顺序
+- 每个功能的优先级
+
+### 第 2 步：生成 phase.yaml
+
+写入 `phase.yaml` 文件，格式如下：
+
+```yaml
+title: "<从 PRD 提取的阶段标题>"
+base_branch: main
+agent: <coding-agent 名称>   # 查看 agents/ 目录
+
+features:
+  - id: <短标识>              # 小写、连字符、仅 ASCII（如 db-schema）
+    title: "<可读标题>"
+    priority: 90              # 0-100，越高越先执行
+    input:
+      - <PRD 文件路径>        # 相对于 phase.yaml 的路径
+
+  - id: <短标识>
+    title: "<可读标题>"
+    depends_on: [<上游 id>]
+    priority: 80
+    input:
+      - <PRD 文件路径>
+```
+
+**规则：**
+- `id` 在 phase 内唯一，仅 ASCII（如 `db-schema`、`user-auth`）
+- `depends_on` 引用同 phase 中其他 feature 的 `id`
+- 必须构成合法 DAG（无环）
+- 根 feature（无依赖）优先级最高
+- 最后一个 feature 应为集成/E2E 测试，依赖所有其他 feature
+- `input` 路径相对于 phase.yaml 所在目录
+
+### 第 3 步：与用户确认
+
+展示生成的 phase.yaml 和依赖图，请用户确认。
+
+### 第 4 步：执行
+
+```bash
+# 创建 feature + 跑 planner
+nezha phase plan phase.yaml
+
+# 不跑 planner（只创建 feature）
+nezha phase plan phase.yaml --skip-planner
+```
+
+### 第 5 步：检查
+
+```bash
+nezha phase show <phase-id>    # 查看 DAG 结构
+nezha feature list              # 查看所有 feature
+```
+
+用户检查每个 task_list.json 无误后，运行 `nezha run <agent>` 执行。
+"""
+
 # All skills: (directory_name, en_content, zh_content)
 _SKILLS = [
     ("overview", _SKILL_STATUS, _SKILL_STATUS_ZH),
@@ -2623,6 +3012,7 @@ _SKILLS = [
     ("optimize", _SKILL_OPTIMIZE, _SKILL_OPTIMIZE_ZH),
     ("test-report", _SKILL_TEST_REPORT, _SKILL_TEST_REPORT_ZH),
     ("batch-features", _SKILL_BATCH_FEATURES, _SKILL_BATCH_FEATURES_ZH),
+    ("phase-plan", _SKILL_PHASE_PLAN, _SKILL_PHASE_PLAN_ZH),
 ]
 
 

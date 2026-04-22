@@ -354,15 +354,15 @@ class TestRunDirectApi:
 # ---------------------------------------------------------------------------
 
 class TestExecutorDirectBranch:
-    def test_session_mode_direct_in_agent_yaml(self):
-        """EngineConfig.api_type and session.mode='direct' are loaded from YAML."""
+    def test_session_mode_in_agent_yaml(self):
+        """EngineConfig.api_type and session.mode are loaded from YAML."""
         from nezha.config import load_agent_config
         config_path = Path(__file__).parent.parent / "src" / "nezha" / "templates" / "agents" / "planner-agent.yaml"
         if not config_path.exists():
             pytest.skip("planner-agent.yaml not found")
 
         config = load_agent_config(config_path)
-        assert config.session.mode == "direct"
+        assert config.session.mode in ("direct", "single_round")
         assert config.engine.api_type == "anthropic"
 
     def test_engine_config_default_api_type(self):

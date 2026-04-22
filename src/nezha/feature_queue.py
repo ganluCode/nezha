@@ -75,6 +75,7 @@ class FeatureQueue(Protocol):
     def update_status(
         self, feature_id: str, status: FeatureStatus, error: str | None = None
     ) -> None: ...
+    def update_metadata(self, feature_id: str, metadata: dict) -> None: ...
     def list_features(
         self, agent_name: str | None = None, status: FeatureStatus | None = None
     ) -> list[Feature]: ...
@@ -319,7 +320,7 @@ class FileFeatureQueue:
         return feature
 
     def get_next(self, agent_name: str | None = None) -> Feature | None:
-        """Return the earliest pending feature.
+        """Return the earliest pending feature whose dependencies are met.
 
         Args:
             agent_name: If given, only return features that have a
@@ -330,7 +331,56 @@ class FileFeatureQueue:
         if not pending:
             return None
         # Higher priority first; break ties by creation time (earliest first)
-        return sorted(pending, key=lambda t: (-t.priority, t.created_at))[0]
+        sorted_pending = sorted(pending, key=lambda t: (-t.priority, t.created_at))
+        for candidate in sorted_pending:
+            if not self._phase_deps_met(candidate):
+                continue
+            return candidate
+        return None
+
+    def _phase_deps_met(self, feature: Feature) -> bool:
+        """Check if all phase-level dependencies are completed.
+
+        Returns True if:
+        - Feature has no phase_id (not part of a phase — backward compat)
+        - Feature has no phase_depends_on (root in phase)
+        - All depended-on features are COMPLETED
+        """
+        phase_id = feature.metadata.get("phase_id")
+        if not phase_id:
+            return True
+
+        phase_deps = feature.metadata.get("phase_depends_on", [])
+        if not phase_deps:
+            return True
+
+        # Load phase manifest to resolve step_id → feature_id
+        phases_dir = self._features_dir.parent / "phases"
+        phase_yaml = phases_dir / phase_id / "phase.yaml"
+        if not phase_yaml.exists():
+            return True  # manifest missing — don't block
+
+        try:
+            import yaml as _yaml
+            with open(phase_yaml, encoding="utf-8") as f:
+                phase_data = _yaml.safe_load(f) or {}
+        except Exception:
+            return True  # parse error — don't block
+
+        step_to_fid = {
+            feat["step_id"]: feat["feature_id"]
+            for feat in phase_data.get("features", [])
+        }
+
+        for dep_step_id in phase_deps:
+            dep_fid = step_to_fid.get(dep_step_id)
+            if not dep_fid:
+                continue  # unknown dep — don't block
+            dep_feature = self._read_feature(dep_fid)
+            if dep_feature is None or dep_feature.status != FeatureStatus.COMPLETED:
+                return False
+
+        return True
 
     def get(self, feature_id: str) -> Feature | None:
         """Return a specific feature by ID, or None if not found."""

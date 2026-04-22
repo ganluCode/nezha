@@ -25,6 +25,7 @@ Steps:
 ### RULES
 
 - Do exactly what the user asked — no more, no less
+- **Do NOT switch branches** — the executor has already placed you on the correct branch. Never run `git checkout`, `git switch`, or `git branch` to change branches. Commit directly on the current branch.
 - If the instruction is unclear, ask for clarification before proceeding
 - Prefer surgical edits over large rewrites
 - Leave the workspace in a clean, working state

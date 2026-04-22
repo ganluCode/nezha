@@ -54,6 +54,7 @@ After completing your work (whether rework or new feature):
 
 ### RULES
 - Work on the **assigned target feature only** — the executor manages the execution order
+- **Do NOT switch branches** — the executor has already placed you on the correct branch. Never run `git checkout`, `git switch`, or `git branch` to change branches. Commit directly on the current branch.
 - Do NOT implement other features, even if they look ready
 - Do NOT delete entries or modify the structure of {{workspace}}/task_list.json
 - Allowed field changes: `passes`, `rework`, `rework_note`, `rework_count`

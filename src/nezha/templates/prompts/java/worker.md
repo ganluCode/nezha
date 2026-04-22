@@ -126,6 +126,7 @@ The `{{workspace}}/.dag_context.json` contains:
 
 ### RULES
 - Work on the assigned feature only
+- **Do NOT switch branches** — the executor has already placed you on the correct branch. Never run `git checkout`, `git switch`, or `git branch` to change branches. Commit directly on the current branch.
 - Follow the existing package naming and code style
 - Do NOT modify `pom.xml` / `build.gradle` unless the feature explicitly requires a new dependency
 - Always run `mvn test` (or `./gradlew test`) before committing

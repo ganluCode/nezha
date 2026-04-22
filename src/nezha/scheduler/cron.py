@@ -15,7 +15,7 @@ except ImportError:
 class CronScheduler(BaseScheduler):
     """Execute on a cron schedule (e.g., '0 2 * * *' = every day at 2am)."""
 
-    def __init__(self, config: SchedulerConfig):
+    def __init__(self, config: SchedulerConfig, **kwargs):
         super().__init__(config)
         if not croniter:
             raise ImportError(

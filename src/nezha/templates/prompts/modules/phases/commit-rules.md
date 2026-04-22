@@ -1,6 +1,7 @@
 ### RULES
 
 - Work on the **assigned target feature only** — the executor manages execution order
+- **Do NOT switch branches** — the executor has already placed you on the correct branch. Never run `git checkout`, `git switch`, or `git branch` to change branches. Commit directly on the current branch.
 - Follow the existing code naming and style conventions
 - Do NOT modify build/dependency files unless the feature explicitly requires a new dependency
 - Always run tests before committing

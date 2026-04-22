@@ -317,6 +317,41 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to executor config file",
     )
 
+    # phase subcommand group — batch feature orchestration
+    phase_parser = subparsers.add_parser("phase", help="Manage feature phases (batch feature groups)")
+    phase_sub = phase_parser.add_subparsers(dest="phase_command", help="Phase commands")
+
+    # phase plan
+    pp_plan = phase_sub.add_parser("plan", help="Create features from a phase YAML file")
+    pp_plan.add_argument("file", help="Path to phase.yaml input file")
+    pp_plan.add_argument(
+        "--base-branch", type=str, default="main",
+        help="Git base branch for root features (default: main)",
+    )
+    pp_plan.add_argument(
+        "--skip-planner", action="store_true",
+        help="Skip running planner-agent (just create features)",
+    )
+    pp_plan.add_argument(
+        "--config", type=str, default="executor.yaml",
+        help="Path to executor config file",
+    )
+
+    # phase show
+    pp_show = phase_sub.add_parser("show", help="Show phase status (outer DAG)")
+    pp_show.add_argument("phase_id", help="Phase ID")
+    pp_show.add_argument(
+        "--config", type=str, default="executor.yaml",
+        help="Path to executor config file",
+    )
+
+    # phase list
+    pp_list = phase_sub.add_parser("list", help="List all phases")
+    pp_list.add_argument(
+        "--config", type=str, default="executor.yaml",
+        help="Path to executor config file",
+    )
+
     # init command — scaffold a new nezha project
     init_parser = subparsers.add_parser(
         "init", help="Scaffold a new nezha project directory",
@@ -424,7 +459,15 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("resume", help="Resume the executor")
 
     # stop command
-    stop_parser = subparsers.add_parser("stop", help="Stop a background agent process")
+    stop_parser = subparsers.add_parser("stop", help="Stop a running agent process")
+    stop_parser.add_argument(
+        "--graceful", action="store_true",
+        help="Graceful stop: finish current feature, then exit (default behavior)",
+    )
+    stop_parser.add_argument(
+        "--force", action="store_true",
+        help="Force stop: send SIGTERM immediately (may interrupt current feature)",
+    )
     stop_parser.add_argument(
         "--config", type=str, default="executor.yaml",
         help="Path to executor config file",
@@ -510,8 +553,23 @@ def _launch_background(args) -> None:
     print(f"[background] Use 'nezha logs -f' to follow output")
 
 
+def _stop_graceful(config_path: str) -> None:
+    """Write a graceful stop signal file.
+
+    The scheduler checks for this file between feature executions
+    and stops cleanly. The file is consumed (deleted) on detection.
+    """
+    state_dir = _get_state_dir(config_path)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    stop_file = state_dir / ".stop"
+    stop_file.write_text("")
+    print(f"[stop] Graceful stop signal written — will stop after current feature completes")
+    print(f"  Signal file: {stop_file}")
+    print(f"  Use 'nezha stop --force' to terminate immediately")
+
+
 def _stop_background(config_path: str) -> None:
-    """Stop a background agent process by reading PID file."""
+    """Stop a background agent process by sending SIGTERM."""
     state_dir = _get_state_dir(config_path)
     pid_file = state_dir / "run.pid"
 
@@ -779,6 +837,29 @@ def main():
                 config_path=args.config,
             )
 
+    elif args.command == "phase":
+        if args.phase_command is None:
+            parser.parse_args(["phase", "--help"])
+            sys.exit(0)
+
+        if args.phase_command == "plan":
+            from nezha.interface.cli import cmd_phase_plan
+            cmd_phase_plan(
+                phase_file=args.file,
+                base_branch=args.base_branch,
+                skip_planner=args.skip_planner,
+                config_path=args.config,
+            )
+        elif args.phase_command == "show":
+            from nezha.interface.cli import cmd_phase_show
+            cmd_phase_show(
+                phase_id=args.phase_id,
+                config_path=args.config,
+            )
+        elif args.phase_command == "list":
+            from nezha.interface.cli import cmd_phase_list
+            cmd_phase_list(config_path=args.config)
+
     elif args.command == "init":
         from nezha.interface.cli import cmd_init
         cmd_init(project_dir=args.project_dir)
@@ -836,7 +917,11 @@ def main():
         cmd_dashboard(config_path=args.config, output=args.output, open_browser=args.open)
 
     elif args.command == "stop":
-        _stop_background(config_path=args.config)
+        if args.force:
+            _stop_background(config_path=args.config)
+        else:
+            # Default: graceful stop (write signal file)
+            _stop_graceful(config_path=args.config)
 
     else:
         # pause, resume — not yet implemented

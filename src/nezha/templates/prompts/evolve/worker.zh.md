@@ -93,6 +93,7 @@
 
 ### 规则
 - 只处理**分配的目标功能**——执行顺序由执行器管理
+- **禁止切换分支** — 执行器已将你置于正确的分支上。不要运行 `git checkout`、`git switch` 或 `git branch` 来切换分支。直接在当前分支上提交。
 - **不要**实现其他功能，即使它们看起来已就绪
 - **不要**删除条目或修改 {{workspace}}/task_list.json 的结构
 - 允许修改的字段：`passes`、`rework`、`rework_note`（JSON 对象）、`rework_count`

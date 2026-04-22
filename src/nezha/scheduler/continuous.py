@@ -1,6 +1,7 @@
 """Continuous scheduler: loop with configurable delay and adaptive backoff."""
 
 import asyncio
+from pathlib import Path
 
 from nezha.config import SchedulerConfig
 from nezha.scheduler.base import BaseScheduler
@@ -13,9 +14,14 @@ class ContinuousScheduler(BaseScheduler):
     - "success"  → reset to base interval
     - "failure"  → exponential backoff: interval * 2^consecutive_failures, capped at max_backoff
     - "no_task"  → same as failure if backoff_on_no_task=True, else use base interval
+
+    Graceful stop:
+    - ``nezha stop --graceful`` writes a ``.stop`` file to state_dir.
+    - The scheduler checks for this file between iterations and during wait.
+    - The file is consumed (deleted) on detection — one-time signal.
     """
 
-    def __init__(self, config: SchedulerConfig):
+    def __init__(self, config: SchedulerConfig, state_dir: Path | None = None):
         super().__init__(config)
         self._interval = config.interval
         self._max_backoff = config.max_backoff if config.max_backoff > 0 else float("inf")
@@ -25,6 +31,7 @@ class ContinuousScheduler(BaseScheduler):
         self._iteration = 0
         self._consecutive_failures = 0
         self._current_interval = config.interval
+        self._state_dir = state_dir
 
     @property
     def iteration(self) -> int:
@@ -65,14 +72,43 @@ class ContinuousScheduler(BaseScheduler):
             self._consecutive_failures = 0
             self._current_interval = self._interval
 
+    def _check_stop_signal(self) -> bool:
+        """Check for graceful stop signal file. Consumes (deletes) it if found.
+
+        Returns True if stop signal was detected.
+        """
+        if not self._state_dir:
+            return False
+        stop_file = self._state_dir / ".stop"
+        if stop_file.exists():
+            try:
+                stop_file.unlink()
+            except OSError:
+                pass
+            return True
+        return False
+
     async def start(self, execute_fn, on_failure_judge=None) -> None:
         """Start the continuous loop."""
         self._running = True
+
+        # Clear any stale stop signal from a previous run
+        if self._state_dir:
+            stale = self._state_dir / ".stop"
+            if stale.exists():
+                stale.unlink(missing_ok=True)
+                print("[continuous] Cleared stale stop signal from previous run")
+
         print(f"[continuous] Starting with interval={self._interval}s"
               f", max_backoff={self._max_backoff}s"
               f", failure_strategy={self._failure_strategy}")
 
         while self._running:
+            # Check graceful stop signal before each iteration
+            if self._check_stop_signal():
+                print("[continuous] Graceful stop signal received — stopping before next feature")
+                break
+
             self._iteration += 1
             print(f"\n[continuous] === Iteration {self._iteration} ===")
             try:
@@ -134,5 +170,10 @@ class ContinuousScheduler(BaseScheduler):
             sleep_time = min(1.0, interval - elapsed)
             await asyncio.sleep(sleep_time)
             elapsed += sleep_time
+            # Check stop signal during wait (responsive within 1s)
+            if self._check_stop_signal():
+                print("[continuous] Graceful stop signal received during wait")
+                self._running = False
+                return False
 
         return self._running

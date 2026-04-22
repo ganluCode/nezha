@@ -34,6 +34,7 @@ Read `.test_report.json` in the workspace root. It contains:
 ## RULES
 
 - Focus on integration/wiring issues, NOT feature logic (features are already done)
+- **Do NOT switch branches** — the executor has already placed you on the correct branch. Never run `git checkout`, `git switch`, or `git branch` to change branches. Commit directly on the current branch.
 - Do NOT modify test files unless they have genuine bugs
 - Keep changes minimal and targeted
 - Check `previous_fixes` to avoid repeating failed approaches

@@ -59,7 +59,7 @@ class SchedulerFactory:
         cls._registry[mode] = scheduler_cls
 
     @classmethod
-    def create(cls, config: SchedulerConfig) -> BaseScheduler:
+    def create(cls, config: SchedulerConfig, **kwargs) -> BaseScheduler:
         scheduler_cls = cls._registry.get(config.mode)
         if not scheduler_cls:
             available = list(cls._registry.keys())
@@ -67,4 +67,4 @@ class SchedulerFactory:
                 f"Unknown scheduler mode: '{config.mode}'. "
                 f"Available: {available}"
             )
-        return scheduler_cls(config)
+        return scheduler_cls(config, **kwargs)

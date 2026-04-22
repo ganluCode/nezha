@@ -7,7 +7,7 @@ from nezha.scheduler.base import BaseScheduler
 class ManualScheduler(BaseScheduler):
     """Execute once and exit. This is the default for `nezha run`."""
 
-    def __init__(self, config: SchedulerConfig):
+    def __init__(self, config: SchedulerConfig, **kwargs):
         super().__init__(config)
         self._executed = False
 

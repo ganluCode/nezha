@@ -33,7 +33,7 @@ engine:
       - mkdir
 
 session:
-  mode: "direct"
+  mode: "single_round"
   prompts:
     worker: "planner/worker.md"
 

@@ -115,6 +115,7 @@ After implementation (for both Rework and New Feature), you must perform a compr
 ## RULES
 
 *   **Strict Scope**: Implement **only** the `target_feature`. Do not refactor unrelated code or implement other features.
+- **Do NOT switch branches** — the executor has already placed you on the correct branch. Never run `git checkout`, `git switch`, or `git branch` to change branches. Commit directly on the current branch.
 *   **Tech Stack Compliance**: Adhere strictly to the UI library and styling method defined in `tech_stack.yaml`.
 *   **Field Whitelist**: Only modify these fields in {{workspace}}/task_list.json: `passes`, `rework`, `rework_note`, `rework_count`. Do NOT delete entries or modify the structure.
 *   **Clean Code**: Remove `console.log` statements and unused imports before committing.

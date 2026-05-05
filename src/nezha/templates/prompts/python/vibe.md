@@ -57,6 +57,7 @@ Steps:
 ### RULES
 
 - Do exactly what the user asked — no more, no less
+- **Do NOT switch branches** — the executor has already placed you on the correct branch. Never run `git checkout`, `git switch`, or `git branch` to change branches. Commit directly on the current branch.
 - Never skip layers (no business logic in routes, no DB calls in routes)
 - Run at least a targeted test before committing
 - Leave the project in a clean, importable state

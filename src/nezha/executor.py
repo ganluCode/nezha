@@ -210,14 +210,74 @@ def _git_worktree_add(
     return True
 
 
-def _git_worktree_remove(target: Path, worktree_path: Path) -> None:
-    """Remove a git worktree after task completion."""
+def _git_worktree_remove(
+    target: Path, worktree_path: Path,
+    env: dict[str, str] | None = None,
+) -> None:
+    """Remove a git worktree after task completion.
+
+    Ensures the branch ref is preserved in the main repo before removal.
+    Downstream features may depend on this branch as their base_branch.
+    """
+    git_env = _build_git_env(env)
+
+    # Before removing worktree, get the branch name and ensure it's preserved.
+    # "git worktree remove" detaches HEAD but keeps the branch ref if there
+    # are commits on it. However, if the branch has NO new commits (same as
+    # base), git may prune it. We ensure the branch exists by checking it.
+    branch_result = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=worktree_path,
+        capture_output=True,
+        text=True,
+        env=git_env,
+    )
+    branch_name = branch_result.stdout.strip() if branch_result.returncode == 0 else ""
+
+    # Remove the worktree
     subprocess.run(
         ["git", "worktree", "remove", str(worktree_path), "--force"],
         cwd=target,
         capture_output=True,
         check=False,
+        env=git_env,
     )
+
+    # Ensure the branch ref still exists in main repo (even if no new commits).
+    # If worktree removal pruned the branch, re-create it at the same commit.
+    if branch_name and branch_name != "HEAD":
+        check = subprocess.run(
+            ["git", "rev-parse", "--verify", branch_name],
+            cwd=target,
+            capture_output=True,
+            text=True,
+            env=git_env,
+        )
+        if check.returncode != 0:
+            # Branch was pruned — re-create from the worktree's last commit
+            # (which is still in reflog or we can use the base branch)
+            # Try to find the commit from worktree's HEAD reflog
+            reflog = subprocess.run(
+                ["git", "reflog", "show", branch_name, "-1", "--format=%H"],
+                cwd=target,
+                capture_output=True,
+                text=True,
+                env=git_env,
+            )
+            commit = reflog.stdout.strip() if reflog.returncode == 0 else ""
+            if not commit:
+                # Fallback: use the base branch (branch was created but had no commits)
+                # This still preserves the branch name for downstream features
+                commit = "HEAD"
+            subprocess.run(
+                ["git", "branch", branch_name, commit],
+                cwd=target,
+                capture_output=True,
+                check=False,
+                env=git_env,
+            )
+            print(f"[executor] Preserved branch ref: {branch_name}")
+
     print(f"[executor] Removed worktree: {worktree_path}")
 
 
@@ -256,22 +316,38 @@ async def _run_planner_for_task_list(
     """Run planner-agent to generate task_list.json for a coding agent.
 
     The planner reads the feature's input/ files and generates task_list.json
-    in the feature workspace.
+    in the feature workspace. Supports both direct API and single_round (Claude
+    Code SDK) modes based on the planner's session.mode config.
     """
-    from nezha.pipeline.direct_api import run_direct_api
-
     print(f"[executor] Running planner: {planner_config.agent.name}")
 
-    result = await run_direct_api(
-        executor_config=executor_config,
-        agent_config=planner_config,
-        workspace=feature_workspace,
-        env=merged_env,
-        target=None,  # planners don't need a code target
-        project_dir=project_dir,
-        agent_workspace=feature_workspace,
-        mode=None,
-    )
+    session_mode = planner_config.session.mode
+
+    if session_mode == "direct":
+        from nezha.pipeline.direct_api import run_direct_api
+        result = await run_direct_api(
+            executor_config=executor_config,
+            agent_config=planner_config,
+            workspace=feature_workspace,
+            env=merged_env,
+            target=None,  # planners don't need a code target
+            project_dir=project_dir,
+            agent_workspace=feature_workspace,
+            mode=None,
+        )
+    else:
+        # single_round: use Claude Code SDK subprocess
+        from nezha.pipeline.session import run_single_round
+        result = await run_single_round(
+            executor_config=executor_config,
+            agent_config=planner_config,
+            workspace=feature_workspace,
+            env=merged_env,
+            target=None,
+            project_dir=project_dir,
+            agent_workspace=feature_workspace,
+            base_dir=base_dir,
+        )
 
     if result.status == "error":
         print(f"[executor] Planner failed: {result.error}")
@@ -1192,7 +1268,7 @@ async def execute_agent(
                 # Remove worktree if it was used
                 if worktree_path and target:
                     try:
-                        _git_worktree_remove(target, worktree_path)
+                        _git_worktree_remove(target, worktree_path, env=merged_env)
                     except Exception as e:
                         print(f"[executor] worktree cleanup failed: {e}")
 
@@ -1220,7 +1296,7 @@ async def execute_agent(
                 # Remove worktree even on failure to avoid stale worktrees
                 if worktree_path and target:
                     try:
-                        _git_worktree_remove(target, worktree_path)
+                        _git_worktree_remove(target, worktree_path, env=merged_env)
                     except Exception as e:
                         print(f"[executor] worktree cleanup failed: {e}")
 
@@ -1282,7 +1358,8 @@ async def execute_agent(
 
     # Create scheduler and run
     concurrency = executor_config.scheduler.concurrency
-    scheduler = SchedulerFactory.create(executor_config.scheduler)
+    state_dir = base_dir / executor_config.state_dir
+    scheduler = SchedulerFactory.create(executor_config.scheduler, state_dir=state_dir)
 
     if concurrency > 1 and not feature_id:
         # Parallel mode: run up to N features concurrently

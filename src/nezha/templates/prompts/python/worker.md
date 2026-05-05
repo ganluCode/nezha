@@ -143,6 +143,7 @@ The `{{workspace}}/.dag_context.json` contains:
 
 ### RULES
 - Work on the assigned feature only
+- **Do NOT switch branches** — the executor has already placed you on the correct branch. Never run `git checkout`, `git switch`, or `git branch` to change branches. Commit directly on the current branch.
 - Follow the existing module naming and code style
 - Do NOT modify `pyproject.toml` / `requirements.txt` unless the feature explicitly requires a new dependency
 - Always run `pytest` before committing

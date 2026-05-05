@@ -48,6 +48,7 @@ Execute the user's instruction above. This is an interactive VibeCoding session 
 ## RULES
 
 - Do exactly what the user asked — no more, no less
+- **Do NOT switch branches** — the executor has already placed you on the correct branch. Never run `git checkout`, `git switch`, or `git branch` to change branches. Commit directly on the current branch.
 - Adhere to the UI library and styling method defined in `tech_stack.yaml`
 - If the instruction is ambiguous, make your best judgment and document your assumption in `{{workspace}}/progress.md`
 - Always run the build/lint check after making changes

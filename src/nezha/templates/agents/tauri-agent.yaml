@@ -1,0 +1,112 @@
+# =============================================================================
+# Tauri Agent — Tauri 2.0 + Python Sidecar + React/Vue desktop fullstack
+# 适合跨语言桌面端项目：Rust 主程序 + Python 业务后端 + 前端 UI
+# =============================================================================
+
+agent:
+  name: "tauri-agent"
+  category: "coding"
+  description: "Tauri 2.0 + Python Sidecar + React/Vue 桌面端全栈编码"
+
+engine:
+  model: "claude-sonnet-4-6"
+  max_turns: 200          # 跨语言任务可能需要更多 turns
+  tools:
+    - Read
+    - Write
+    - Edit
+    - Bash
+    - Glob
+    - Grep
+  security:
+    allowed_commands:
+      # 通用
+      - ls
+      - cat
+      - find
+      - grep
+      - head
+      - tail
+      - wc
+      - pwd
+      - mkdir
+      - cp
+      - rm
+      - mv
+      - chmod
+      - curl
+      - git
+      # Rust / Tauri
+      - cargo
+      - rustc
+      - rustup
+      - tauri
+      - cargo-tauri
+      # Python sidecar
+      - python
+      - python3
+      - pip
+      - pip3
+      - uv
+      - uvx
+      - poetry
+      - pytest
+      - ruff
+      - mypy
+      # Frontend (React / Vue / vanilla)
+      - npm
+      - npx
+      - node
+      - pnpm
+      - yarn
+      - tsc
+      - eslint
+      - prettier
+      - vite
+      - vitest
+      # 进程管理
+      - ps
+      - lsof
+      - sleep
+      - pkill
+
+session:
+  mode: "multi_round"
+  compose:
+    worker:
+      base: "coding/base.md"
+      sections:
+        - phases/context-acquisition
+        - stacks/tauri-fullstack
+        - phases/tdd
+        - phases/regression
+        - phases/commit-rules
+    initializer:
+      base: "coding/base.md"
+      sections:
+        - phases/context-acquisition
+        - stacks/tauri-fullstack
+
+git:
+  branch_per_task: true
+  use_worktree: true
+  base_branch: "main"
+  auto_commit: true
+  auto_push: false
+
+pipeline:
+  # 可选：跨语言集成测试
+  # post_task_test:
+  #   enabled: true
+  #   command: "pnpm test && cd sidecars/nezha-sidecar && pytest && cd ../../src-tauri && cargo test"
+  #   max_cycles: 3
+  #   timeout: 900
+
+workspace:
+  path: "./workspace/tauri-agent"
+
+# target is set project-wide in executor.yaml.
+# Uncomment below to override for this agent only:
+# target: "/path/to/your/tauri-project"
+# For monorepo: set target_scope to your desktop subdirectory.
+# target_scope: "desktop"

@@ -143,6 +143,7 @@ tests/
 
 ### 规则
 - 只处理分配的功能
+- **禁止切换分支** — 执行器已将你置于正确的分支上。不要运行 `git checkout`、`git switch` 或 `git branch` 来切换分支。直接在当前分支上提交。
 - 遵循现有模块命名和代码风格
 - 除非功能明确需要新依赖，否则不要修改 `pyproject.toml` / `requirements.txt`
 - 提交前必须运行 `pytest`

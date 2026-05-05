@@ -129,6 +129,7 @@ After completing the gardening pass, write a brief summary to `gardening-report.
 ### RULES
 
 - Do NOT implement new features
+- **Do NOT switch branches** — the executor has already placed you on the correct branch. Never run `git checkout`, `git switch`, or `git branch` to change branches. Commit directly on the current branch.
 - Do NOT modify test files or production code unless fixing a high-priority debt item
 - Always read files before writing
 - Keep all documentation concise — avoid padding

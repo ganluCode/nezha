@@ -115,6 +115,7 @@
 ## 规则
 
 - **严格限定范围**：只实现 `target_feature`，不重构无关代码，不实现其他功能
+- **禁止切换分支** — 执行器已将你置于正确的分支上。不要运行 `git checkout`、`git switch` 或 `git branch` 来切换分支。直接在当前分支上提交。
 - **遵守技术栈**：严格遵循 `tech_stack.yaml` 中定义的 UI 库和样式方案
 - **字段白名单**：`{{workspace}}/task_list.json` 中只允许修改 `passes`、`rework`、`rework_note`、`rework_count` 字段，不得删除条目或修改结构
 - **代码整洁**：提交前移除 `console.log` 语句和未使用的 import

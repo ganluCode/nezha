@@ -467,13 +467,25 @@ async def _ai_judge_continue(
         return False
 
 
+def _is_claude_model(model: str) -> bool:
+    return model.startswith("claude-")
+
+
 async def _judge_call_anthropic(prompt: str, model: str, env: dict) -> str:
-    """Judge call via Anthropic SDK."""
+    """Judge call for Anthropic api_type.
+
+    - Claude models: use claude-code-sdk (reuses existing Claude Code auth, no key needed)
+    - Other models: use Anthropic SDK with key from judge_env or os.environ
+    """
+    if _is_claude_model(model):
+        return await _judge_call_sdk(prompt, model, env)
+
+    # Non-Claude model via Anthropic-compatible API (fallback to os.environ)
     import asyncio
     from anthropic import Anthropic
 
-    api_key = env.get("ANTHROPIC_API_KEY") or None
-    base_url = env.get("ANTHROPIC_BASE_URL") or None
+    api_key = env.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_API_KEY") or None
+    base_url = env.get("ANTHROPIC_BASE_URL") or os.environ.get("ANTHROPIC_BASE_URL") or None
     client = Anthropic(
         api_key=api_key,
         **({"base_url": base_url} if base_url else {}),
@@ -491,6 +503,27 @@ async def _judge_call_anthropic(prompt: str, model: str, env: dict) -> str:
 
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, _sync_call)
+
+
+async def _judge_call_sdk(prompt: str, model: str, env: dict) -> str:
+    """Judge call via claude-code-sdk — reuses Claude Code login auth, no API key needed."""
+    from claude_code_sdk import ClaudeCodeOptions, query as sdk_query
+    from claude_code_sdk.types import ResultMessage
+
+    options = ClaudeCodeOptions(
+        model=model,
+        max_turns=1,
+        permission_mode="bypassPermissions",
+        env=env or {},
+    )
+    result_text = ""
+    async for msg in sdk_query(prompt=prompt, options=options):
+        if msg is None:
+            continue
+        if type(msg).__name__ == "ResultMessage":
+            result_text = msg.result or ""
+            break
+    return result_text
 
 
 async def _judge_call_openai(prompt: str, model: str, env: dict) -> str:
@@ -952,7 +985,13 @@ async def execute_agent(
                 if result.duration_ms:
                     print(f"  Duration: {result.duration_ms}ms")
 
-                if result.status == "error":
+                if result.status == "rate_limited":
+                    print("[executor] Rate limit detected — writing graceful stop signal")
+                    stop_file = base_dir / executor_config.state_dir / ".stop"
+                    stop_file.parent.mkdir(parents=True, exist_ok=True)
+                    stop_file.write_text("")
+                    last_error = result.error
+                elif result.status == "error":
                     last_error = result.error
                     await event_bus.emit(Event.create(
                         EventType.SESSION_ERROR,
@@ -1006,7 +1045,15 @@ async def execute_agent(
                             n=i, status=r.status, turns=r.num_turns, cost=cost_str))
 
                 last = results[-1] if results else None
-                if last and last.status == "error":
+                # Check if any session hit rate limit
+                rate_limited = any(r.status == "rate_limited" for r in results)
+                if rate_limited:
+                    print("[executor] Rate limit detected — writing graceful stop signal")
+                    stop_file = base_dir / executor_config.state_dir / ".stop"
+                    stop_file.parent.mkdir(parents=True, exist_ok=True)
+                    stop_file.write_text("")
+                    last_error = "API rate limit"
+                elif last and last.status == "error":
                     last_error = last.error
                     await event_bus.emit(Event.create(
                         EventType.SESSION_ERROR,
@@ -1185,7 +1232,13 @@ async def execute_agent(
                 if result.cost_usd:
                     print(t('executor.session.cost', cost=f"${result.cost_usd:.4f}"))
 
-                if result.status == "error":
+                if result.status == "rate_limited":
+                    print("[executor] Rate limit detected — writing graceful stop signal")
+                    stop_file = base_dir / executor_config.state_dir / ".stop"
+                    stop_file.parent.mkdir(parents=True, exist_ok=True)
+                    stop_file.write_text("")
+                    last_error = result.error
+                elif result.status == "error":
                     last_error = result.error
                     await event_bus.emit(Event.create(
                         EventType.SESSION_ERROR,
@@ -1344,16 +1397,25 @@ async def execute_agent(
         if not next_feature:
             return False  # No next feature, stop anyway
 
-        # Merge judge-specific env over merged_env
-        judge_env = {**merged_env, **executor_config.scheduler.judge_env}
+        # Resolve judge model: model_map.low → judge_model (fallback)
+        low_entry = executor_config.model_map.get("low")
+        if low_entry and low_entry.model:
+            judge_model = low_entry.model
+            judge_api_type = "openai" if not _is_claude_model(low_entry.model) else "anthropic"
+            judge_env = {**merged_env, **low_entry.env, **executor_config.scheduler.judge_env}
+        else:
+            judge_model = executor_config.scheduler.judge_model
+            judge_api_type = executor_config.scheduler.judge_api_type
+            judge_env = {**merged_env, **executor_config.scheduler.judge_env}
+
         return await _ai_judge_continue(
             failed_feature_id=_last_failure.get("feature_id", "unknown"),
             failed_error=_last_failure.get("error", "unknown"),
             next_feature_title=next_feature.title or next_feature.id,
             report_path=_last_failure.get("report_path"),
             env=judge_env,
-            model=executor_config.scheduler.judge_model,
-            api_type=executor_config.scheduler.judge_api_type,
+            model=judge_model,
+            api_type=judge_api_type,
         )
 
     # Create scheduler and run

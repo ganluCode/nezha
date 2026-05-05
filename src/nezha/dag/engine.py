@@ -127,6 +127,21 @@ class DAGEngine:
             encoding="utf-8",
         )
 
+    def _clear_rework_flag(self, task_id: str) -> None:
+        """Clear rework flag in task_list.json after successful re-execution."""
+        try:
+            with open(self._task_list_path, encoding="utf-8") as f:
+                tasks = json.load(f)
+            for task in tasks:
+                if task["id"] == task_id:
+                    task["rework"] = False
+                    break
+            with open(self._task_list_path, "w", encoding="utf-8") as f:
+                json.dump(tasks, f, indent=2, ensure_ascii=False)
+                f.write("\n")
+        except Exception:
+            pass  # non-critical — graph.py fix ensures correct status anyway
+
     async def _emit(self, event_type: str, **data):
         """Emit a DAG event if callback is set."""
         if self._on_dag_event:
@@ -336,6 +351,12 @@ class DAGEngine:
             if session_result.status == "error":
                 print(f"[DAG] Session error: {session_result.error}")
 
+            # Rate limited — stop DAG immediately
+            if session_result.status == "rate_limited":
+                print(f"[DAG] Rate limit detected — stopping DAG execution")
+                result.exit_reason = "rate_limited"
+                break
+
             # --- Record session for report ---
             # Determine result after verification (updated below if needed)
             session_record = SessionRecord(
@@ -401,6 +422,8 @@ class DAGEngine:
                 consecutive_same.pop(target.id, None)
                 if target.rework:
                     result.rework_fixed += 1
+                    # Clear rework flag in task_list.json to prevent re-scheduling
+                    self._clear_rework_flag(target.id)
                 await self._emit(
                     "dag_feature_completed",
                     feature_id=target.id,

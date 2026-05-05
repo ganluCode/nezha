@@ -116,8 +116,11 @@ async def run_session(
                 continue
             msg_type = type(msg).__name__
 
-            # Skip unknown / non-essential message types (e.g. rate_limit_event)
+            # Skip unknown / non-essential message types
             if msg_type not in ("AssistantMessage", "UserMessage", "ResultMessage"):
+                # Log rate limit info messages (informational, not an error)
+                if "rate_limit" in msg_type.lower():
+                    logging.getLogger(__name__).info("Rate limit info: %s", msg_type)
                 continue
 
             if msg_type == "AssistantMessage" and hasattr(msg, "content"):
@@ -165,15 +168,31 @@ async def run_session(
 
             elif msg_type == "ResultMessage":
                 _usage = msg.usage or {}
+                # Detect unrecoverable errors that require graceful stop
+                _error_text = (msg.result or "") if msg.is_error else ""
+                _is_rate_limited = msg.is_error and any(
+                    kw in _error_text.lower()
+                    for kw in (
+                        "rate limit", "rate_limit", "too many requests", "overloaded",
+                        "429", "529",
+                        "authentication_error", "invalid authentication", "401",
+                    )
+                )
+                if _is_rate_limited:
+                    _status = "rate_limited"
+                elif msg.is_error:
+                    _status = "error"
+                else:
+                    _status = "completed"
                 yield SessionResult(
-                    status="error" if msg.is_error else "completed",
+                    status=_status,
                     duration_ms=msg.duration_ms,
                     num_turns=msg.num_turns,
                     cost_usd=msg.total_cost_usd,
                     input_tokens=_usage.get("input_tokens", 0) or 0,
                     output_tokens=_usage.get("output_tokens", 0) or 0,
                     result_text=msg.result or "",
-                    error=msg.result if msg.is_error else "",
+                    error=_error_text,
                 )
                 return
 

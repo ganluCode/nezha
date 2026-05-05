@@ -105,7 +105,10 @@ async def run_direct_api(
 
     try:
         if api_type == "anthropic":
-            result_text = await _call_anthropic(prompt, model, merged_env)
+            if model.startswith("claude-"):
+                result_text = await _call_sdk(prompt, model, merged_env)
+            else:
+                result_text = await _call_anthropic(prompt, model, merged_env)
         elif api_type == "openai":
             result_text = await _call_openai(prompt, model, merged_env)
         else:
@@ -359,3 +362,24 @@ async def _call_openai(prompt: str, model: str, env: dict) -> str:
         temperature=0.2,
     )
     return resp.choices[0].message.content or ""
+
+
+async def _call_sdk(prompt: str, model: str, env: dict) -> str:
+    """Call via claude-code-sdk — reuses Claude Code login auth, no API key needed."""
+    import nezha.engine  # noqa: F401 — triggers monkey-patch for unknown message types
+    from claude_code_sdk import ClaudeCodeOptions, query as sdk_query
+
+    options = ClaudeCodeOptions(
+        model=model,
+        max_turns=1,
+        permission_mode="bypassPermissions",
+        env=env or {},
+    )
+    result_text = ""
+    async for msg in sdk_query(prompt=prompt, options=options):
+        if msg is None:
+            continue
+        if type(msg).__name__ == "ResultMessage":
+            result_text = msg.result or ""
+            break
+    return result_text

@@ -51,3 +51,13 @@ mcp_servers: {}
 # scheduler:
 #   mode: "continuous"   # manual | continuous
 #   interval: 60         # seconds between runs
+
+# Heartbeat: periodically ping models to keep them warm (optional)
+# heartbeat:
+#   interval: 18000      # seconds between pings (default 5 hours)
+#   models:
+#     - model: claude-haiku-4-5-20251001   # Claude: uses SDK auth automatically
+#     # - model: glm-4-flash               # third-party: provide env with API key
+#     #   env:
+#     #     OPENAI_API_KEY: "your-key"
+#     #     OPENAI_BASE_URL: "https://open.bigmodel.cn/api/paas/v4"

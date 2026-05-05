@@ -124,6 +124,10 @@ class TaskDAG:
         if f is None:
             return STATUS_BLOCKED
 
+        # Completed (passes takes priority over rework)
+        if f.passes:
+            return STATUS_COMPLETED
+
         # Skipped (rework exhausted)
         if f.rework_count >= REWORK_MAX_COUNT:
             return STATUS_SKIPPED
@@ -131,10 +135,6 @@ class TaskDAG:
         # Rework needed
         if f.rework:
             return STATUS_REWORK
-
-        # Completed
-        if f.passes and not f.rework:
-            return STATUS_COMPLETED
 
         # Check dependencies
         unmet = self._get_unmet_deps(task_id)

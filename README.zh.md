@@ -8,6 +8,10 @@ YAML 驱动的 AI Agent 编排执行框架，基于 [Claude Code SDK](https://do
 [![Tests](https://img.shields.io/badge/Tests-933%20passed-brightgreen.svg)](#测试)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+## 视频介绍
+
+[![Nezha 项目讲解介绍](http://i2.hdslb.com/bfs/archive/62aa8c664e2d1e51141e872621465d35d1f14962.jpg)](https://www.bilibili.com/video/BV1EJVr6mEtd/)
+
 Nezha 将 AI 编码 Agent 从"对话工具"提升为**可编排、可观测、可持续运行的工程系统**。你只需编写 YAML 配置，就能驱动多个 Agent 按 DAG 依赖顺序自动完成复杂的软件工程任务。
 
 ---

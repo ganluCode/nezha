@@ -81,6 +81,21 @@ class ModelMapEntry:
 
 
 @dataclass
+class HeartbeatModelEntry:
+    """A single model entry for heartbeat configuration."""
+    model: str = ""
+    env: dict[str, str] = field(default_factory=dict)  # API key / base_url overrides
+
+
+@dataclass
+class HeartbeatConfig:
+    """Heartbeat configuration: periodically ping models to keep them warm."""
+    enabled: bool = False
+    interval: int = 18000   # seconds between pings (default 5 hours)
+    models: list[HeartbeatModelEntry] = field(default_factory=list)
+
+
+@dataclass
 class ExecutorConfig:
     executor: ExecutorMeta = field(default_factory=ExecutorMeta)
     workspace: WorkspaceConfig = field(default_factory=WorkspaceConfig)
@@ -95,6 +110,7 @@ class ExecutorConfig:
     locale: str = "en"   # "en" | "zh_CN" — overridden by AGENT_EXEC_LANG env var
     model_map: dict[str, ModelMapEntry] = field(default_factory=dict)  # project-level model_map (from global config)
     target: str | None = None  # project-level target (code repo path); agent YAML can override
+    heartbeat: HeartbeatConfig = field(default_factory=HeartbeatConfig)
 
 
 # ---------------------------------------------------------------------------
@@ -341,6 +357,23 @@ def load_executor_config(config_path: str | Path) -> ExecutorConfig:
         elif isinstance(entry, str):
             parsed_model_map[level] = ModelMapEntry(model=entry)
     config.model_map = parsed_model_map
+
+    # Parse heartbeat config
+    hb_raw = raw.get("heartbeat") or {}
+    hb_models = []
+    for m in (hb_raw.get("models") or []):
+        if isinstance(m, dict):
+            hb_models.append(HeartbeatModelEntry(
+                model=m.get("model", ""),
+                env={str(k): str(v) for k, v in (m.get("env") or {}).items()},
+            ))
+        elif isinstance(m, str):
+            hb_models.append(HeartbeatModelEntry(model=m))
+    config.heartbeat = HeartbeatConfig(
+        enabled=hb_raw.get("enabled", bool(hb_models)),
+        interval=int(hb_raw.get("interval", 18000)),
+        models=hb_models,
+    )
 
     return config
 

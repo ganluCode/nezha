@@ -142,7 +142,8 @@ async def run_single_round(
     # Resolve prompt key based on mode
     prompt_key = mode if (mode and agent_config.session.prompts.get(mode)) else "worker"
     worker_prompt_path = agent_config.session.prompts.get(prompt_key, "")
-    if not worker_prompt_path:
+    worker_compose = agent_config.session.compose.get(prompt_key) if agent_config.session.compose else None
+    if not worker_prompt_path and not (worker_compose and worker_compose.base):
         if mode:
             raise ValueError(
                 f"Agent {agent_config.agent.name}: no prompt configured for mode '{mode}'. "
@@ -364,6 +365,10 @@ async def main():
                         elif len(lines) > 1:
                             result_preview = f" → {{len(lines)}} lines"
                 print(f"  [{{status}}]{{result_preview}}", flush=True)
+            elif event.event_type == "rate_limited":
+                print("\\n[rate_limited] API rate limit detected — signalling graceful stop", flush=True)
+                result = SessionResult(status="rate_limited", error="API rate limit")
+                break
 
     # Write result to file for parent to read (always in metadata workspace)
     result_data = dict(
@@ -468,12 +473,16 @@ def _run_isolated_session(
 
     # Print stderr (SDK warnings, cancel scope errors) to console for visibility
     if stderr_text:
-        # Filter out known SDK noise (cancel scope cleanup warnings)
+        # Filter out known SDK noise (cancel scope / anyio cleanup warnings)
         _important_lines = [
             line for line in stderr_text.split("\n")
             if "cancel scope" not in line.lower()
             and "GeneratorExit" not in line
             and "Task exception was never retrieved" not in line
+            and "__aexit__" not in line
+            and "query.py" not in line
+            and "anyio/_backends" not in line
+            and "await query.close()" not in line
         ]
         if _important_lines:
             print(f"[session] stderr: {chr(10).join(_important_lines[-10:])}")
@@ -637,10 +646,11 @@ async def run_multi_round(
     if not prompts_dir.is_absolute():
         prompts_dir = project_root / prompts_dir
 
-    # Check for initializer vs worker prompts
+    # Check for initializer vs worker prompts (supports both compose and single-template modes)
     init_prompt_path = agent_config.session.prompts.get("initializer")
     worker_prompt_path = agent_config.session.prompts.get("worker", "")
-    if not worker_prompt_path:
+    worker_compose = agent_config.session.compose.get("worker") if agent_config.session.compose else None
+    if not worker_prompt_path and not (worker_compose and worker_compose.base):
         raise ValueError(f"Agent {agent_config.agent.name}: no worker prompt configured")
 
     # Support both new name and legacy name
@@ -999,6 +1009,10 @@ async def main():
                         elif len(lines) > 1:
                             result_preview = f" → {{len(lines)}} lines"
                 print(f"  [{{status}}]{{result_preview}}", flush=True)
+            elif event.event_type == "rate_limited":
+                print("\\n[rate_limited] API rate limit detected — signalling graceful stop", flush=True)
+                result = SessionResult(status="rate_limited", error="API rate limit")
+                break
 
     result_data = dict(
         status=result.status if result else "error",

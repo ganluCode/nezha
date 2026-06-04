@@ -1,5 +1,7 @@
 # Nezha (哪吒)
 
+[中文文档](README.zh.md)
+
 > Named after Nezha, the mythical deity with three heads and six arms — symbolizing the framework's ability to orchestrate multiple AI agents working in parallel with efficiency and power.
 
 A YAML-driven AI Agent orchestration and execution framework, built on the [Claude Code SDK](https://docs.anthropic.com/en/docs/claude-code/sdk).
@@ -7,6 +9,10 @@ A YAML-driven AI Agent orchestration and execution framework, built on the [Clau
 [![Python](https://img.shields.io/badge/Python-≥3.12-blue.svg)](https://www.python.org/)
 [![Tests](https://img.shields.io/badge/Tests-933%20passed-brightgreen.svg)](#testing)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+## Video Overview
+
+[![Nezha introduction video](http://i2.hdslb.com/bfs/archive/62aa8c664e2d1e51141e872621465d35d1f14962.jpg)](https://www.bilibili.com/video/BV1EJVr6mEtd/)
 
 Nezha elevates AI coding agents from "chat tools" to a **fully orchestratable, observable, and continuously running engineering system**. Just write YAML configs to drive multiple agents through complex software engineering tasks in DAG dependency order.
 

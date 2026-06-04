@@ -458,6 +458,16 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("pause", help="Pause the executor")
     subparsers.add_parser("resume", help="Resume the executor")
 
+    # heartbeat command
+    heartbeat_parser = subparsers.add_parser("heartbeat", help="Manage model heartbeat (keep-warm pings)")
+    heartbeat_sub = heartbeat_parser.add_subparsers(dest="heartbeat_action")
+    hb_start = heartbeat_sub.add_parser("start", help="Start heartbeat background process")
+    hb_start.add_argument("--config", type=str, default="executor.yaml", help="Path to executor config")
+    hb_test = heartbeat_sub.add_parser("test", help="Ping all models once immediately")
+    hb_test.add_argument("--config", type=str, default="executor.yaml", help="Path to executor config")
+    hb_stop = heartbeat_sub.add_parser("stop", help="Stop heartbeat background process")
+    hb_stop.add_argument("--config", type=str, default="executor.yaml", help="Path to executor config")
+
     # stop command
     stop_parser = subparsers.add_parser("stop", help="Stop a running agent process")
     stop_parser.add_argument(
@@ -922,6 +932,33 @@ def main():
         else:
             # Default: graceful stop (write signal file)
             _stop_graceful(config_path=args.config)
+
+    elif args.command == "heartbeat":
+        import asyncio
+        from nezha.config import load_executor_config
+        from nezha import heartbeat as hb_mod
+
+        action = getattr(args, "heartbeat_action", None)
+        if not action:
+            print("Usage: nezha heartbeat {start|test|stop}")
+        else:
+            config_path = getattr(args, "config", "executor.yaml")
+            executor_config = load_executor_config(config_path)
+            state_dir = _get_state_dir(config_path)
+
+            if action in ("start", "test") and not executor_config.heartbeat.models:
+                print("[heartbeat] No models configured — add 'heartbeat.models' to executor.yaml")
+                print("  Example:")
+                print("    heartbeat:")
+                print("      interval: 18000")
+                print("      models:")
+                print("        - model: claude-haiku-4-5-20251001")
+            elif action == "start":
+                hb_mod.start(executor_config.heartbeat, state_dir)
+            elif action == "test":
+                asyncio.run(hb_mod.run_once(executor_config.heartbeat))
+            elif action == "stop":
+                hb_mod.stop(state_dir)
 
     else:
         # pause, resume — not yet implemented

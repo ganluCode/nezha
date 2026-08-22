@@ -94,9 +94,14 @@ async def run_direct_api(
     # ------------------------------------------------------------------
     # Resolve credentials from merged env (executor + agent)
     # ------------------------------------------------------------------
-    merged_env = {**(env or {}), **(agent_config.engine.env or {})}
-    api_type = agent_config.engine.api_type.lower()
-    model = agent_config.engine.model
+    default_strategy = executor_config.default_strategy
+    merged_env = {
+        **(env or {}),
+        **(default_strategy.env or {}),
+        **(agent_config.engine.env or {}),
+    }
+    api_type = (agent_config.engine.api_type or default_strategy.api_type).lower()
+    model = agent_config.engine.model or default_strategy.model
 
     print(f"[direct_api] {agent_config.agent.name} | api_type={api_type} | model={model}")
     print(f"[direct_api] Workspace: {workspace}")

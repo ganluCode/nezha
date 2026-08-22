@@ -61,6 +61,13 @@ class TestProjectInitCreatesStructure:
         content = f.read_text(encoding="utf-8")
         assert "# Project Knowledge" in content
 
+    def test_creates_knowledge_agents_md(self, executor_yaml, project_dir):
+        cmd_project_init(config_path=executor_yaml)
+        f = project_dir / "knowledge" / "AGENTS.md"
+        assert f.is_file()
+        content = f.read_text(encoding="utf-8")
+        assert "# Project Knowledge" in content
+
     def test_creates_roadmap_md(self, executor_yaml, project_dir):
         cmd_project_init(config_path=executor_yaml)
         f = project_dir / "roadmap.md"

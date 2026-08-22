@@ -115,7 +115,8 @@ def load_project_context(project_dir: Path) -> str:
         - project.yaml — project metadata (name, description, repo)
         - tech_stack.yaml — technology stack definitions
         - standards/*.md — coding standards (all .md files merged)
-        - knowledge/CLAUDE.md — project-specific AI guidance
+        - knowledge/AGENTS.md — project-specific AI guidance (preferred)
+        - knowledge/CLAUDE.md — legacy Claude-specific project guidance
         - roadmap.md — project roadmap
 
     Args:
@@ -179,10 +180,13 @@ def load_project_context(project_dir: Path) -> str:
             if len(parts) > 2:  # has actual content beyond header
                 sections.append("\n".join(parts).rstrip())
 
-    # --- knowledge/CLAUDE.md ---
-    claude_md = _read_file_safe(project_dir / "knowledge" / "CLAUDE.md")
-    if claude_md is not None and claude_md.strip():
-        sections.append(f"## Project Knowledge\n\n{claude_md.strip()}")
+    # --- knowledge/AGENTS.md or legacy knowledge/CLAUDE.md ---
+    knowledge_dir = project_dir / "knowledge"
+    agents_md = _read_file_safe(knowledge_dir / "AGENTS.md")
+    claude_md = _read_file_safe(knowledge_dir / "CLAUDE.md")
+    knowledge_md = agents_md if agents_md is not None and agents_md.strip() else claude_md
+    if knowledge_md is not None and knowledge_md.strip():
+        sections.append(f"## Project Knowledge\n\n{knowledge_md.strip()}")
 
     # --- roadmap.md ---
     roadmap_md = _read_file_safe(project_dir / "roadmap.md")

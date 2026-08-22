@@ -42,9 +42,10 @@
    - 根据 task.md 创建规范文件（如 `coding.md`、`api.md`）
    - 无特定规范时创建 `.gitkeep` 占位文件
 
-4. **`knowledge/CLAUDE.md`** — AI agent 项目知识
+4. **`knowledge/AGENTS.md`** — AI agent 项目知识
    - 包含 task.md 中的项目约定、模式和规则
    - 此文件自动注入所有 agent session
+   - 如果存在 `knowledge/CLAUDE.md`，将它作为 legacy mirror 保持同步
 
 5. **`roadmap.md`** — 项目路线图
    ```markdown
@@ -130,12 +131,14 @@
 步骤：
 1. 修改前先读取现有文件：
    - 读取 `{{project_dir}}/standards/` 目录内容
-   - 读取 `{{project_dir}}/knowledge/CLAUDE.md`
+   - 读取 `{{project_dir}}/knowledge/AGENTS.md`
+   - 如存在，读取 `{{project_dir}}/knowledge/CLAUDE.md`
    - 读取 `{{project_dir}}/roadmap.md`
 
 2. 按 task.md 描述应用更新：
    - 规范更新：编辑或创建 `{{project_dir}}/standards/` 中的文件
-   - 知识更新：编辑 `{{project_dir}}/knowledge/CLAUDE.md`
+   - 知识更新：编辑 `{{project_dir}}/knowledge/AGENTS.md`
+   - 如果 `{{project_dir}}/knowledge/CLAUDE.md` 存在，将相同事实更新同步过去
    - 路线图更新：编辑 `{{project_dir}}/roadmap.md`
 
 3. 如适用，更新 `{{project_dir}}/roadmap.md` 反映变更。

@@ -205,6 +205,21 @@ class TestCmdInit:
         assert (project_path / "workspace").is_dir()
         assert (project_path / "input").is_dir()
         assert (project_path / ".gitignore").is_file()
+        assert (project_path / "AGENTS.md").is_file()
+        assert (project_path / "CLAUDE.md").is_file()
+        assert (project_path / ".claude" / "skills" / "overview" / "SKILL.md").is_file()
+        assert (project_path / ".agents" / "skills" / "overview" / "SKILL.md").is_file()
+
+    def test_init_generates_runtime_specific_project_knowledge_imports(self, tmp_path):
+        from nezha.interface.cli import cmd_init
+
+        project_path = tmp_path / "my-project"
+        cmd_init(str(project_path))
+
+        agents_md = (project_path / "AGENTS.md").read_text(encoding="utf-8")
+        claude_md = (project_path / "CLAUDE.md").read_text(encoding="utf-8")
+        assert "@workspace/project/knowledge/AGENTS.md" in agents_md
+        assert "@workspace/project/knowledge/CLAUDE.md" in claude_md
 
     def test_init_executor_yaml_is_valid(self, tmp_path):
         from nezha.interface.cli import cmd_init

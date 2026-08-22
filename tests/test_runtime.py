@@ -19,9 +19,10 @@ from nezha.runtime import (
 )
 
 
-def test_engine_config_default_runtime_is_claude_code():
+def test_engine_config_default_runtime_is_empty():
     config = EngineConfig()
-    assert config.runtime == "claude_code"
+    assert config.runtime == ""
+    assert config.model == ""
 
 
 def test_agent_config_loads_runtime_field(tmp_path):
@@ -66,6 +67,11 @@ def test_runtime_factory_rejects_unknown_runtime():
         get_runtime("unknown_runtime")
 
 
+def test_runtime_factory_rejects_empty_runtime():
+    with pytest.raises(ValueError, match="No runtime configured"):
+        get_runtime("")
+
+
 def test_engine_module_reexports_session_types():
     assert EngineSessionEvent is SessionEvent
     assert EngineSessionResult is SessionResult
@@ -107,3 +113,10 @@ def test_session_runner_has_codex_claude_md_fallback():
     assert 'runtime_name in {{"codex", "codex_cli"}}' in _SUBPROCESS_RUNNER
     assert 'not (cwd / "AGENTS.md").is_file()' in _SUBPROCESS_RUNNER
     assert '(cwd / "CLAUDE.md").is_file()' in _SUBPROCESS_RUNNER
+
+
+def test_session_runner_applies_runtime_git_identity():
+    from nezha.pipeline.session import _SUBPROCESS_RUNNER
+
+    assert "apply_runtime_git_identity" in _SUBPROCESS_RUNNER
+    assert "GIT_COMMITTER" not in _SUBPROCESS_RUNNER

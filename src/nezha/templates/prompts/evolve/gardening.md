@@ -22,7 +22,8 @@ Read the following to understand the current state:
 2. `project/roadmap.md` — Project roadmap and current priorities
 3. `design/*.md` — Architecture documents
 4. `project/standards/` — Coding standards (if present)
-5. `project/knowledge/CLAUDE.md` — Project knowledge file
+5. `project/knowledge/AGENTS.md` — Project knowledge file
+   - `project/knowledge/CLAUDE.md` is a legacy mirror when present
 
 ---
 
@@ -79,12 +80,13 @@ Note violations found but do NOT auto-fix code changes — only document finding
 
 ---
 
-#### 4. CLAUDE.md Sync
+#### 4. Project Knowledge Sync
 
-Check `project/knowledge/CLAUDE.md`:
+Check `project/knowledge/AGENTS.md`:
 - Does it reflect the current directory structure?
 - Are there outdated module descriptions or missing new modules?
 - Update facts that are demonstrably wrong
+- If `project/knowledge/CLAUDE.md` exists, mirror the same factual updates there
 
 Keep the file concise — agents read it every session.
 

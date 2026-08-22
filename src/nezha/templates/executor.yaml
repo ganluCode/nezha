@@ -51,12 +51,58 @@ mcp_servers: {}
 # scheduler:
 #   mode: "continuous"   # manual | continuous
 #   interval: 60         # seconds between runs
+#   failure_strategy: ai_judge
+#   judge_strategy:
+#     runtime: codex_cli
+#     model: gpt-5.4-mini
+
+# Runtime security notes:
+# - Claude Code uses agent engine.security.allowed_commands via PreToolUse hook.
+# - Codex CLI uses agent engine.security.sandbox.
+# - Codex CLI does not enforce allowed_commands; keep sandbox=workspace-write for coding tasks.
+
+# Complexity-based execution routing.
+# Agents define roles and prompts; executor.yaml decides which runtime/model runs
+# low/medium/high tasks. Task lists should set only `complexity`, not `model`.
+default_strategy:
+  runtime: codex_cli
+  model: gpt-5.4
+
+# Optional agent-level overrides. Useful for single_round agents such as
+# planner/product/pm, or as a fallback for a specific coding agent when
+# model_map does not match a task complexity.
+# agent_strategies:
+#   planner-agent:
+#     runtime: codex_cli
+#     model: gpt-5.4
+
+model_map:
+  low:
+    runtime: codex_cli          # claude_code | codex_cli | opencode_cli (when available)
+    model: gpt-5.4-mini
+    # Optional: if OPENAI_BASE_URL/CODEX_BASE_URL is configured, nezha injects
+    # Codex provider config dynamically. If omitted, Codex uses its default auth.
+    # env:
+    #   OPENAI_BASE_URL: "${OPENAI_BASE_URL}"
+    #   OPENAI_API_KEY: "${OPENAI_API_KEY}"
+    task_factor: 1.2
+  medium:
+    runtime: codex_cli
+    model: gpt-5.4
+    task_factor: 1.0
+  high:
+    runtime: codex_cli
+    model: gpt-5.5
+    task_factor: 0.8
 
 # Heartbeat: periodically ping models to keep them warm (optional)
 # heartbeat:
 #   interval: 18000      # seconds between pings (default 5 hours)
 #   models:
-#     - model: claude-haiku-4-5-20251001   # Claude: uses SDK auth automatically
+#     - runtime: codex_cli
+#       model: gpt-5.4-mini
+#     # - runtime: claude_code
+#     #   model: claude-haiku-4-5-20251001   # Claude: uses SDK auth automatically
 #     # - model: glm-4-flash               # third-party: provide env with API key
 #     #   env:
 #     #     OPENAI_API_KEY: "your-key"

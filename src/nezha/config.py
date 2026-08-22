@@ -33,6 +33,15 @@ class WorkspaceConfig:
 
 
 @dataclass
+class RuntimeStrategy:
+    """Runtime/model/env strategy selected by executor-level routing."""
+    runtime: str = ""
+    model: str = ""
+    env: dict[str, str] = field(default_factory=dict)
+    api_type: str = ""  # Only used by direct API / judge clients when needed.
+
+
+@dataclass
 class SchedulerConfig:
     mode: str = "manual"  # manual | continuous | cron
     interval: int = 3
@@ -43,9 +52,10 @@ class SchedulerConfig:
     concurrency: int = 1  # max parallel feature executions; 1 = sequential
     failure_strategy: str = "ai_judge"  # "stop" | "continue" | "ai_judge"
     stop_on_empty: bool = True   # stop scheduler when no pending features remain
-    judge_model: str = "claude-haiku-4-5-20251001"  # model for ai_judge evaluation
-    judge_api_type: str = "anthropic"  # "anthropic" | "openai" — same as engine.api_type
+    judge_model: str = ""  # Legacy model for ai_judge evaluation
+    judge_api_type: str = ""  # Legacy "anthropic" | "openai"
     judge_env: dict[str, str] = field(default_factory=dict)  # env overrides for judge (API keys, base URL)
+    judge_strategy: RuntimeStrategy = field(default_factory=RuntimeStrategy)
 
 
 @dataclass
@@ -67,10 +77,8 @@ _DEFAULT_TASK_FACTORS: dict[str, float] = {"low": 1.2, "medium": 1.0, "high": 0.
 
 
 @dataclass
-class ModelMapEntry:
-    """Maps a complexity level to a specific model and optional env overrides."""
-    model: str = ""
-    env: dict[str, str] = field(default_factory=dict)
+class ModelMapEntry(RuntimeStrategy):
+    """Maps a complexity level to runtime/model/env execution strategy."""
     task_factor: float = 0.0  # 0 = use level-specific default from _DEFAULT_TASK_FACTORS
 
     def effective_task_factor(self, level: str = "medium") -> float:
@@ -83,6 +91,7 @@ class ModelMapEntry:
 @dataclass
 class HeartbeatModelEntry:
     """A single model entry for heartbeat configuration."""
+    runtime: str = ""
     model: str = ""
     env: dict[str, str] = field(default_factory=dict)  # API key / base_url overrides
 
@@ -108,6 +117,8 @@ class ExecutorConfig:
     prompts_dir: str = "./prompts"
     state_dir: str = "./state"
     locale: str = "en"   # "en" | "zh_CN" — overridden by AGENT_EXEC_LANG env var
+    default_strategy: RuntimeStrategy = field(default_factory=RuntimeStrategy)
+    agent_strategies: dict[str, RuntimeStrategy] = field(default_factory=dict)
     model_map: dict[str, ModelMapEntry] = field(default_factory=dict)  # project-level model_map (from global config)
     target: str | None = None  # project-level target (code repo path); agent YAML can override
     heartbeat: HeartbeatConfig = field(default_factory=HeartbeatConfig)
@@ -134,13 +145,18 @@ def build_model_map_info(model_map: dict[str, "ModelMapEntry"]) -> str:
         entry = model_map.get(level)
         if entry:
             factor = entry.effective_task_factor(level)
-            lines.append(f"- {level}: model={entry.model}, task_factor={factor}")
+            runtime = entry.runtime or "(default)"
+            model = entry.model or "(default)"
+            lines.append(
+                f"- {level}: runtime={runtime}, model={model}, task_factor={factor}"
+            )
     return "\n".join(lines) if lines else "Not configured"
 
 
 @dataclass
 class EngineConfig:
-    model: str = "claude-sonnet-4-5-20250929"
+    runtime: str = ""
+    model: str = ""
     max_turns: int = 1000
     tools: list[str] = field(default_factory=lambda: [
         "Read", "Write", "Edit", "Bash", "Glob", "Grep",
@@ -148,7 +164,7 @@ class EngineConfig:
     mcp_servers: dict[str, Any] = field(default_factory=dict)
     security: dict[str, Any] = field(default_factory=dict)
     env: dict[str, str] = field(default_factory=dict)
-    api_type: str = "anthropic"  # "anthropic" | "openai" — used in direct mode
+    api_type: str = ""  # "anthropic" | "openai" — used in direct mode
     model_map: dict[str, ModelMapEntry] = field(default_factory=dict)
     session_timeout: int = 3600  # subprocess session timeout in seconds (default 1 hour)
 
@@ -305,6 +321,43 @@ def resolve_env_refs(env: dict[str, str], base_env: dict[str, str] | None = None
     return resolved
 
 
+def _parse_runtime_strategy(data: Any, dotenv: dict[str, str] | None = None) -> RuntimeStrategy:
+    """Parse a runtime/model/env strategy from YAML."""
+    if not data:
+        return RuntimeStrategy()
+    if isinstance(data, str):
+        return RuntimeStrategy(model=data)
+    if not isinstance(data, dict):
+        return RuntimeStrategy()
+    return RuntimeStrategy(
+        runtime=str(data.get("runtime", "") or ""),
+        model=str(data.get("model", "") or ""),
+        env=resolve_env_refs(
+            {str(k): str(v) for k, v in (data.get("env") or {}).items()},
+            dotenv,
+        ),
+        api_type=str(data.get("api_type", "") or ""),
+    )
+
+
+def _parse_model_map_entry(data: Any, dotenv: dict[str, str] | None = None) -> ModelMapEntry:
+    """Parse a model_map entry from YAML."""
+    if isinstance(data, str):
+        return ModelMapEntry(model=data)
+    if not isinstance(data, dict):
+        return ModelMapEntry()
+    return ModelMapEntry(
+        runtime=str(data.get("runtime", "") or ""),
+        model=str(data.get("model", "") or ""),
+        env=resolve_env_refs(
+            {str(k): str(v) for k, v in (data.get("env") or {}).items()},
+            dotenv,
+        ),
+        api_type=str(data.get("api_type", "") or ""),
+        task_factor=float(data.get("task_factor", 0)),
+    )
+
+
 def load_executor_config(config_path: str | Path) -> ExecutorConfig:
     """Load executor.yaml into an ExecutorConfig object.
 
@@ -344,18 +397,26 @@ def load_executor_config(config_path: str | Path) -> ExecutorConfig:
         target=raw.get("target"),
     )
 
+    config.default_strategy = _parse_runtime_strategy(raw.get("default_strategy"), merged_env)
+    config.agent_strategies = {
+        str(name): _parse_runtime_strategy(strategy, merged_env)
+        for name, strategy in (raw.get("agent_strategies") or {}).items()
+    }
+    scheduler_raw = raw.get("scheduler") or {}
+    config.scheduler.judge_strategy = _parse_runtime_strategy(
+        scheduler_raw.get("judge_strategy"),
+        merged_env,
+    )
+    config.scheduler.judge_env = resolve_env_refs(
+        {str(k): str(v) for k, v in (config.scheduler.judge_env or {}).items()},
+        merged_env,
+    )
+
     # Parse model_map (same logic as agent config)
     model_map_raw = raw.get("model_map") or {}
     parsed_model_map: dict[str, ModelMapEntry] = {}
     for level, entry in model_map_raw.items():
-        if isinstance(entry, dict):
-            parsed_model_map[level] = ModelMapEntry(
-                model=entry.get("model", ""),
-                env={str(k): str(v) for k, v in entry.get("env", {}).items()},
-                task_factor=float(entry.get("task_factor", 0)),
-            )
-        elif isinstance(entry, str):
-            parsed_model_map[level] = ModelMapEntry(model=entry)
+        parsed_model_map[level] = _parse_model_map_entry(entry, merged_env)
     config.model_map = parsed_model_map
 
     # Parse heartbeat config
@@ -364,8 +425,12 @@ def load_executor_config(config_path: str | Path) -> ExecutorConfig:
     for m in (hb_raw.get("models") or []):
         if isinstance(m, dict):
             hb_models.append(HeartbeatModelEntry(
+                runtime=m.get("runtime", ""),
                 model=m.get("model", ""),
-                env={str(k): str(v) for k, v in (m.get("env") or {}).items()},
+                env=resolve_env_refs(
+                    {str(k): str(v) for k, v in (m.get("env") or {}).items()},
+                    merged_env,
+                ),
             ))
         elif isinstance(m, str):
             hb_models.append(HeartbeatModelEntry(model=m))
@@ -422,15 +487,7 @@ def load_agent_config(config_path: str | Path) -> AgentConfig:
     model_map_raw = engine_raw.get("model_map") or {}
     parsed_model_map: dict[str, ModelMapEntry] = {}
     for level, entry in model_map_raw.items():
-        if isinstance(entry, dict):
-            parsed_model_map[level] = ModelMapEntry(
-                model=entry.get("model", ""),
-                env={str(k): str(v) for k, v in entry.get("env", {}).items()},
-                task_factor=float(entry.get("task_factor", 0)),
-            )
-        elif isinstance(entry, str):
-            # Shorthand: model_map: { low: "claude-haiku-4-5-20251001" }
-            parsed_model_map[level] = ModelMapEntry(model=entry)
+        parsed_model_map[level] = _parse_model_map_entry(entry)
     config.engine.model_map = parsed_model_map
 
     return config

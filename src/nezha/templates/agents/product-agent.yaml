@@ -9,7 +9,8 @@ agent:
   description: "读取需求文档，输出产品规格（PRD、功能清单、技术选型）"
 
 engine:
-  model: "claude-sonnet-4-6"
+  # runtime/model are resolved from executor.yaml default_strategy/model_map.
+  # You may set them here to force this agent to a specific backend.
   # Uncomment to use a third-party model via proxy:
   # env:
   #   ANTHROPIC_BASE_URL: "https://your-proxy.example.com/api/anthropic"
@@ -23,6 +24,11 @@ engine:
     - Glob
     - Grep
   security:
+    # Codex CLI: filesystem sandbox. Recommended default for coding/workspace tasks.
+    # Values: read-only | workspace-write | danger-full-access
+    sandbox: workspace-write
+    # Claude Code only: enforced through PreToolUse hook.
+    # Codex CLI does not enforce this command allowlist.
     allowed_commands:
       - ls
       - cat

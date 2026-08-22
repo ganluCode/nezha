@@ -952,7 +952,8 @@ def main():
                 print("    heartbeat:")
                 print("      interval: 18000")
                 print("      models:")
-                print("        - model: claude-haiku-4-5-20251001")
+                print("        - runtime: codex_cli")
+                print("          model: gpt-5.4-mini")
             elif action == "start":
                 hb_mod.start(executor_config.heartbeat, state_dir)
             elif action == "test":

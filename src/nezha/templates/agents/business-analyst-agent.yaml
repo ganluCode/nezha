@@ -11,7 +11,8 @@ agent:
   description: "遗留代码业务逆向分析 agent，结合代码图谱（code-analysis MCP）和文档，通过对话逆推屎山业务逻辑"
 
 engine:
-  model: "claude-opus-4-6"
+  # runtime/model are resolved from executor.yaml default_strategy/model_map.
+  # You may set them here to force this agent to a specific backend.
   env: {}
   max_turns: 200
   tools:
@@ -22,6 +23,11 @@ engine:
     - Grep
     - Bash
   security:
+    # Codex CLI: filesystem sandbox. Recommended default for coding/workspace tasks.
+    # Values: read-only | workspace-write | danger-full-access
+    sandbox: workspace-write
+    # Claude Code only: enforced through PreToolUse hook.
+    # Codex CLI does not enforce this command allowlist.
     allowed_commands:
       - ls
       - cat

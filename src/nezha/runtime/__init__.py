@@ -13,9 +13,14 @@ from nezha.runtime.types import (
 )
 
 
-def get_runtime(runtime: str = "claude_code") -> AgentRuntime:
+def get_runtime(runtime: str = "") -> AgentRuntime:
     """Return a runtime adapter by name."""
-    normalized = (runtime or "claude_code").replace("-", "_").lower()
+    if not runtime:
+        raise ValueError(
+            "No runtime configured. Set executor.yaml default_strategy.runtime, "
+            "model_map.<level>.runtime, or agent engine.runtime."
+        )
+    normalized = runtime.replace("-", "_").lower()
     if normalized in {"claude", "claude_code"}:
         return ClaudeCodeRuntime()
     if normalized in {"codex", "codex_cli"}:

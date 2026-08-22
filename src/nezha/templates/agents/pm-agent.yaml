@@ -11,7 +11,8 @@ agent:
   description: "项目管理 agent，负责初始化项目、创建 agent 任务、审查进度、更新规范"
 
 engine:
-  model: "claude-opus-4-6"
+  # runtime/model are resolved from executor.yaml default_strategy/model_map.
+  # You may set them here to force this agent to a specific backend.
   env: {}
   max_turns: 1000
   tools:
@@ -22,6 +23,11 @@ engine:
     - Glob
     - Grep
   security:
+    # Codex CLI: filesystem sandbox. Recommended default for coding/workspace tasks.
+    # Values: read-only | workspace-write | danger-full-access
+    sandbox: workspace-write
+    # Claude Code only: enforced through PreToolUse hook.
+    # Codex CLI does not enforce this command allowlist.
     allowed_commands:
       - ls
       - cat

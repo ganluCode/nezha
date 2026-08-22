@@ -136,6 +136,45 @@ class TestApplyGlobalConfig:
         assert result["model_map"]["low"] == "claude-sonnet-4-6"
         assert result["model_map"]["high"] == "claude-opus-4-6"
 
+    def test_applies_default_strategy(self, tmp_path):
+        executor_yaml = self._make_executor_yaml(tmp_path)
+        global_cfg = tmp_path / "global.yaml"
+        global_cfg.write_text(yaml.dump({
+            "default_strategy": {
+                "runtime": "codex_cli",
+                "model": "gpt-5.4",
+            }
+        }))
+
+        from nezha.interface.cli import _apply_global_config
+        with patch("nezha.interface.cli.GLOBAL_CONFIG_PATH", global_cfg):
+            applied = _apply_global_config(executor_yaml)
+
+        assert "default_strategy" in applied
+        result = yaml.safe_load(executor_yaml.read_text())
+        assert result["default_strategy"]["runtime"] == "codex_cli"
+        assert result["default_strategy"]["model"] == "gpt-5.4"
+
+    def test_applies_agent_strategies(self, tmp_path):
+        executor_yaml = self._make_executor_yaml(tmp_path)
+        global_cfg = tmp_path / "global.yaml"
+        global_cfg.write_text(yaml.dump({
+            "agent_strategies": {
+                "planner-agent": {
+                    "runtime": "codex_cli",
+                    "model": "gpt-5.4",
+                }
+            }
+        }))
+
+        from nezha.interface.cli import _apply_global_config
+        with patch("nezha.interface.cli.GLOBAL_CONFIG_PATH", global_cfg):
+            applied = _apply_global_config(executor_yaml)
+
+        assert "agent_strategies" in applied
+        result = yaml.safe_load(executor_yaml.read_text())
+        assert result["agent_strategies"]["planner-agent"]["runtime"] == "codex_cli"
+
     def test_ignores_non_merge_keys(self, tmp_path):
         executor_yaml = self._make_executor_yaml(tmp_path)
         global_cfg = tmp_path / "global.yaml"

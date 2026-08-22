@@ -1,7 +1,7 @@
 [project]
-name = "agent-executor"
+name = "nezha"
 version = "0.1.0"
-description = "A configurable AI Agent execution unit with multi-model support"
+description = "A YAML-driven AI Agent orchestration and execution framework"
 requires-python = ">=3.12"
 dependencies = [
     "claude-code-sdk>=0.0.25",
@@ -30,10 +30,16 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/nezha"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"src/nezha/templates" = "nezha/templates"
-"src/nezha/locales" = "nezha/locales"
+artifacts = [
+    "src/nezha/templates/**/*.yaml",
+    "src/nezha/templates/**/*.md",
+    "src/nezha/templates/**/.gitkeep",
+    "src/nezha/locales/**/*.yaml",
+]
+exclude = [
+    "**/__pycache__",
+    "**/*.pyc",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

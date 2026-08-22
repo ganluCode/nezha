@@ -136,6 +136,14 @@ class TestExecutorPassesAgentWorkspace:
         src = inspect.getsource(executor.execute_agent)
         assert "agent_workspace=workspace" in src
 
+    def test_execute_agent_single_round_branch_is_explicit(self):
+        """multi_round completion must not fall through into single_round."""
+        from nezha import executor
+
+        src = inspect.getsource(executor.execute_agent)
+        assert 'if session_mode == "single_round":\n                session_counter[0] += 1' in src
+        assert 'else:\n                session_counter[0] += 1\n                await event_bus.emit' not in src
+
     def test_vibe_preserves_agent_workspace_before_task_id_override(self):
         """vibe() should save agent_workspace before workspace is overridden by task_id."""
         from nezha import executor

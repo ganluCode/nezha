@@ -140,8 +140,8 @@ class TestDetermineResult:
 
     def test_agent_fail_command_pass(self):
         passed, reason = _determine_result("F-001", False, True)
-        assert passed is False
-        assert "did not report" in reason
+        assert passed is True
+        assert "Nezha will mark task passed" in reason
 
 
 # ---------------------------------------------------------------------------
@@ -175,23 +175,28 @@ class TestVerifyFeature:
         result = verify_feature(
             "F-002",
             feature_list_path,
-            verification_command=f"{sys.executable} -c \"import sys; sys.exit(1)\"",
+            verification_command=f"{sys.executable} -c \"import sys; print('unit failed'); sys.exit(1)\"",
             workspace=workspace,
         )
         assert result.passed is False
         assert result.agent_reported_pass is True
         assert result.command_passed is False
+        assert result.command_run is True
+        assert "unit failed" in result.command_output_tail
 
     def test_agent_fail_with_command(self, feature_list_path, workspace):
-        # Agent didn't report pass, command doesn't even matter
+        # External verifier success lets Nezha recover metadata even when the
+        # agent did not write passes:true.
         result = verify_feature(
             "F-001",
             feature_list_path,
             verification_command=f"{sys.executable} -c \"print('ok')\"",
             workspace=workspace,
         )
-        assert result.passed is False
+        assert result.passed is True
         assert result.agent_reported_pass is False
+        assert result.command_passed is True
+        assert result.command_run is True
 
 
 # ---------------------------------------------------------------------------
@@ -214,6 +219,36 @@ class TestApplyVerificationResult:
         assert f002["passes"] is True
         assert f002.get("rework") is not True
 
+    def test_passed_marks_task_and_clears_rework(self, feature_list_path):
+        with open(feature_list_path) as f:
+            features = json.load(f)
+        for feature in features:
+            if feature["id"] == "F-001":
+                feature["passes"] = False
+                feature["rework"] = True
+                feature["rework_note"] = {"block_reason": "old failure"}
+                feature["rework_count"] = 2
+        with open(feature_list_path, "w") as f:
+            json.dump(features, f, indent=2)
+
+        result = VerificationResult(
+            task_id="F-001",
+            passed=True,
+            agent_reported_pass=False,
+            command_passed=True,
+            reason="Verification command succeeded; Nezha will mark task passed",
+        )
+        apply_verification_result(result, feature_list_path)
+
+        with open(feature_list_path) as f:
+            features = json.load(f)
+
+        f001 = next(f for f in features if f["id"] == "F-001")
+        assert f001["passes"] is True
+        assert f001["rework"] is False
+        assert "rework_note" not in f001
+        assert f001["rework_count"] == 2
+
     def test_failed_marks_rework(self, feature_list_path):
         result = VerificationResult(
             task_id="F-002",
@@ -234,8 +269,28 @@ class TestApplyVerificationResult:
         rn = f002["rework_note"]
         assert isinstance(rn, dict)
         assert "Verification command failed" in rn["block_reason"]
+        assert rn["verification"]["command_passed"] is False
+        assert rn["verification"]["reason"] == "Verification command failed"
         assert rn["attempt"] == 1
         assert f002["rework_count"] == 1
+
+    def test_failed_rework_note_includes_command_tail(self, feature_list_path):
+        result = VerificationResult(
+            task_id="F-002",
+            passed=False,
+            agent_reported_pass=True,
+            command_passed=False,
+            command_output="line 1\nunit failed hard\n",
+            reason="Verification command failed",
+        )
+        apply_verification_result(result, feature_list_path)
+
+        data = json.loads(feature_list_path.read_text(encoding="utf-8"))
+        f002 = next(f for f in data if f["id"] == "F-002")
+        note = f002["rework_note"]
+        assert note["verification"]["command_run"] is True
+        assert note["verification"]["command_output_tail"] == "line 1\nunit failed hard\n"
+        assert "unit failed hard" in note["block_reason"]
 
     def test_rework_count_increments(self, feature_list_path):
         # Set initial rework_count
@@ -453,6 +508,8 @@ class TestDAGEngineVerification:
         verify_events = [e for e in events if e[0] == "dag.feature_verified"]
         assert len(verify_events) == 1
         assert verify_events[0][1]["passed"] is False
+        assert verify_events[0][1]["command_run"] is True
+        assert "command_output_tail" in verify_events[0][1]
 
         # feature_list.json should have rework marked
         data = json.loads(fl_path.read_text())
@@ -505,6 +562,99 @@ class TestDAGEngineVerification:
         assert len(verify_events) == 1
         assert verify_events[0][1]["passed"] is False
         assert verify_events[0][1]["agent_reported_pass"] is False
+
+    @pytest.mark.asyncio
+    async def test_engine_verifier_pass_recovers_missing_agent_report(self, tmp_path):
+        """When verifier command passes, Nezha marks task passed itself."""
+        from nezha.dag.engine import DAGEngine
+
+        tasks = [
+            {
+                "id": "F-001",
+                "description": "Test",
+                "acceptance": [],
+                "depends_on": [],
+                "passes": False,
+                "rework": True,
+                "rework_note": {"block_reason": "old failure"},
+                "rework_count": 2,
+            }
+        ]
+        task_list_path = tmp_path / "task_list.json"
+        task_list_path.write_text(json.dumps(tasks), encoding="utf-8")
+
+        def mock_session(prompt_path, model_override="", env_override=None):
+            # Agent does NOT update task_list.json.
+            from nezha.engine import SessionResult
+            return SessionResult(status="completed", num_turns=1, cost_usd=0.01, duration_ms=100)
+
+        events = []
+        async def on_event(event_type, data):
+            events.append((event_type, data))
+
+        engine = DAGEngine(
+            task_list_path=task_list_path,
+            workspace=tmp_path,
+            run_session_fn=mock_session,
+            delay=0,
+            on_dag_event=on_event,
+            verification_command=f"{sys.executable} -c \"print('ok')\"",
+        )
+
+        result = await engine.run("worker.md", max_iterations=1)
+
+        assert result.completed == 1
+        data = json.loads(task_list_path.read_text(encoding="utf-8"))
+        assert data[0]["passes"] is True
+        assert data[0]["rework"] is False
+        assert "rework_note" not in data[0]
+        assert data[0]["rework_count"] == 2
+        verify_events = [e for e in events if e[0] == "dag.feature_verified"]
+        assert verify_events[0][1]["passed"] is True
+        assert verify_events[0][1]["agent_reported_pass"] is False
+
+    @pytest.mark.asyncio
+    async def test_engine_verification_command_uses_verification_workspace(self, tmp_path):
+        """Verification command can run in target cwd while task_list stays in workspace."""
+        from nezha.dag.engine import DAGEngine
+
+        feature_workspace = tmp_path / "feature"
+        target_workspace = tmp_path / "target"
+        feature_workspace.mkdir()
+        target_workspace.mkdir()
+        (target_workspace / "target-marker.txt").write_text("ok", encoding="utf-8")
+        task_list_path = feature_workspace / "task_list.json"
+        task_list_path.write_text(json.dumps([
+            {
+                "id": "F-001",
+                "description": "Test",
+                "acceptance": [],
+                "depends_on": [],
+                "passes": False,
+            }
+        ]), encoding="utf-8")
+
+        def mock_session(prompt_path, model_override="", env_override=None):
+            from nezha.engine import SessionResult
+            return SessionResult(status="completed", num_turns=1, cost_usd=0.01, duration_ms=100)
+
+        engine = DAGEngine(
+            task_list_path=task_list_path,
+            workspace=feature_workspace,
+            run_session_fn=mock_session,
+            delay=0,
+            verification_command=(
+                f"{sys.executable} -c \"from pathlib import Path; "
+                "assert Path('target-marker.txt').is_file()\""
+            ),
+            verification_workspace=target_workspace,
+        )
+
+        result = await engine.run("worker.md", max_iterations=1)
+
+        assert result.completed == 1
+        data = json.loads(task_list_path.read_text(encoding="utf-8"))
+        assert data[0]["passes"] is True
 
 
 # ---------------------------------------------------------------------------

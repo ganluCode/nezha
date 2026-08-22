@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import inspect
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -64,27 +65,35 @@ class DAGEngine:
         delay: int = 3,
         on_dag_event: Callable | None = None,
         verification_command: str | None = None,
+        verification_workspace: Path | None = None,
         max_cost_usd: float | None = None,
         max_sessions: int | None = None,
         integration_prompt_path: str | None = None,
         model_map: dict | None = None,
+        agent_strategy=None,
+        default_strategy=None,
     ):
         """
         Args:
             task_list_path: Path to task_list.json
             workspace: Workspace directory
-            run_session_fn: Callable(prompt_path, model_override) that runs one isolated session.
+            run_session_fn: Callable(prompt_path, runtime_override, model_override, env_override)
+                            that runs one isolated session.
                             The DAG engine writes .dag_context.json before calling this.
             delay: Seconds between sessions
             on_dag_event: Optional callback(event_type: str, data: dict)
             verification_command: Optional command to run after each session
                                   (e.g. "python -m pytest"). If None, verification
                                   only checks task_list.json agent report.
+            verification_workspace: Working directory for verification_command.
+                                    Defaults to workspace.
             max_cost_usd: Total cost limit in USD. None = no limit.
             max_sessions: Total session count limit. None = no limit.
             integration_prompt_path: Optional path to integration prompt. If set, runs
                                      one extra integration session after all tasks complete.
             model_map: Optional dict mapping complexity → ModelMapEntry for model resolution.
+            agent_strategy: Agent-specific fallback strategy when model_map misses.
+            default_strategy: Fallback runtime/model/env strategy when model_map misses.
         """
         self._task_list_path = task_list_path
         self._workspace = workspace
@@ -92,26 +101,75 @@ class DAGEngine:
         self._delay = delay
         self._on_dag_event = on_dag_event
         self._verification_command = verification_command
+        self._verification_workspace = verification_workspace or workspace
         self._max_cost_usd = max_cost_usd
         self._max_sessions = max_sessions
         self._integration_prompt_path = integration_prompt_path
         self._model_map = model_map or {}
+        self._agent_strategy = agent_strategy
+        self._default_strategy = default_strategy
         self._dag: TaskDAG | None = None
 
-    def _resolve_model(self, task: Task) -> tuple[str, dict[str, str]]:
-        """Resolve model and env for a task.
+    def _resolve_runtime_model(self, task: Task) -> tuple[str, str, dict[str, str]]:
+        """Resolve runtime, model, and env overrides for a task.
 
-        Priority: task.model (explicit) > model_map[complexity] > empty (agent default).
-        Returns (model_override, env_override).
+        task.model is legacy/deprecated and intentionally ignored. Runtime/model
+        routing belongs to model_map so execution strategy stays in config, not
+        planner-generated task data.
+
+        Priority: model_map[complexity] > agent_strategy > default_strategy > empty.
+        Returns (runtime_override, model_override, env_override).
         """
         if task.model:
-            return task.model, {}
+            print(
+                f"[DAG] WARNING: task.model is deprecated and ignored for {task.id}; "
+                "use executor.yaml model_map instead."
+            )
         if task.complexity and task.complexity in self._model_map:
             entry = self._model_map[task.complexity]
+            runtime = getattr(entry, "runtime", "") if hasattr(entry, "runtime") else ""
             model = getattr(entry, "model", "") if hasattr(entry, "model") else ""
             env = getattr(entry, "env", {}) if hasattr(entry, "env") else {}
-            return model, env
-        return "", {}
+            return runtime, model, env
+        if self._agent_strategy:
+            runtime = getattr(self._agent_strategy, "runtime", "")
+            model = getattr(self._agent_strategy, "model", "")
+            env = getattr(self._agent_strategy, "env", {})
+            if runtime or model or env:
+                return runtime, model, env
+        if self._default_strategy:
+            runtime = getattr(self._default_strategy, "runtime", "")
+            model = getattr(self._default_strategy, "model", "")
+            env = getattr(self._default_strategy, "env", {})
+            if runtime or model or env:
+                return runtime, model, env
+        return "", "", {}
+
+    def _run_session_with_strategy(
+        self,
+        prompt_path: str,
+        runtime_override: str = "",
+        model_override: str = "",
+        env_override: dict[str, str] | None = None,
+    ):
+        """Invoke the session callback, accepting legacy test callbacks."""
+        signature = inspect.signature(self._run_session_fn)
+        has_varargs = any(
+            p.kind == p.VAR_POSITIONAL
+            for p in signature.parameters.values()
+        )
+        positional_params = [
+            p for p in signature.parameters.values()
+            if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)
+        ]
+        if has_varargs or len(positional_params) >= 4:
+            return self._run_session_fn(
+                prompt_path, runtime_override, model_override, env_override or {},
+            )
+
+        # Backward-compatible fallback for old callbacks that still accept
+        # (prompt_path, model_override, env_override).
+        return self._run_session_fn(prompt_path, model_override, env_override or {})
 
     def _reload_dag(self) -> TaskDAG:
         """Reload task_list.json and rebuild DAG."""
@@ -224,7 +282,9 @@ class DAGEngine:
                     print(f"  INTEGRATION SESSION: Verify end-to-end wiring")
                     print(f"{'=' * 60}\n")
                     time.sleep(self._delay)
-                    int_result = self._run_session_fn(self._integration_prompt_path, "", {})
+                    int_result = self._run_session_with_strategy(
+                        self._integration_prompt_path, "", "", {},
+                    )
                     result.sessions_run += 1
                     result.total_cost_usd += int_result.cost_usd or 0
                     _int_tokens = int_result.input_tokens + int_result.output_tokens
@@ -330,10 +390,16 @@ class DAGEngine:
                     print(f"  Rework note: {rn}")
             print(f"{'=' * 60}\n")
 
-            # Run session (pass resolved model + env — empty string means use agent default)
-            resolved_model, resolved_env = self._resolve_model(target)
-            session_result = self._run_session_fn(
-                worker_prompt_path, resolved_model, resolved_env,
+            # Run session (empty overrides mean use agent/executor defaults)
+            resolved_runtime, resolved_model, resolved_env = self._resolve_runtime_model(target)
+            if resolved_runtime or resolved_model:
+                print(
+                    f"[DAG] Runtime route for {target.id}: "
+                    f"runtime={resolved_runtime or '(agent default)'}, "
+                    f"model={resolved_model or '(agent default)'}"
+                )
+            session_result = self._run_session_with_strategy(
+                worker_prompt_path, resolved_runtime, resolved_model, resolved_env,
             )
             result.sessions_run += 1
             result.total_cost_usd += session_result.cost_usd or 0
@@ -376,7 +442,7 @@ class DAGEngine:
                 task_id=target.id,
                 task_list_path=self._task_list_path,
                 verification_command=self._verification_command,
-                workspace=self._workspace,
+                workspace=self._verification_workspace,
             )
 
             await self._emit(
@@ -384,7 +450,9 @@ class DAGEngine:
                 feature_id=target.id,
                 passed=verification.passed,
                 agent_reported_pass=verification.agent_reported_pass,
+                command_run=verification.command_run,
                 command_passed=verification.command_passed,
+                command_output_tail=verification.command_output_tail,
                 reason=verification.reason,
             )
 
@@ -400,6 +468,7 @@ class DAGEngine:
                 apply_verification_result(verification, self._task_list_path)
             else:
                 print(f"[DAG] Verification passed for {target.id}: {verification.reason}")
+                apply_verification_result(verification, self._task_list_path)
 
             # Check if the target task was completed after session
             dag_after = self._reload_dag()

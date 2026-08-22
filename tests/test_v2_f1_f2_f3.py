@@ -93,8 +93,8 @@ class TestF2PerTaskModel:
         assert task.model == ""
 
     @pytest.mark.asyncio
-    async def test_dag_engine_passes_model_to_session_fn(self, tmp_path):
-        """DAGEngine passes task.model as second arg to run_session_fn."""
+    async def test_dag_engine_ignores_task_model_for_session_fn(self, tmp_path, capsys):
+        """DAGEngine ignores deprecated task.model for runtime/model routing."""
         from nezha.dag.engine import DAGEngine
 
         tasks = [
@@ -104,7 +104,7 @@ class TestF2PerTaskModel:
 
         captured_models = []
 
-        def mock_session(prompt_path, model_override="", env_override=None):
+        def mock_session(prompt_path, runtime_override="", model_override="", env_override=None):
             captured_models.append(model_override)
             data = json.loads(tl.read_text())
             data[0]["passes"] = True
@@ -119,7 +119,8 @@ class TestF2PerTaskModel:
         )
         await engine.run("worker.md")
 
-        assert captured_models == ["claude-haiku-4-5"]
+        assert captured_models == [""]
+        assert "task.model is deprecated and ignored" in capsys.readouterr().out
 
     @pytest.mark.asyncio
     async def test_dag_engine_passes_empty_model_when_not_set(self, tmp_path):
@@ -131,7 +132,7 @@ class TestF2PerTaskModel:
 
         captured_models = []
 
-        def mock_session(prompt_path, model_override="", env_override=None):
+        def mock_session(prompt_path, runtime_override="", model_override="", env_override=None):
             captured_models.append(model_override)
             data = json.loads(tl.read_text())
             data[0]["passes"] = True

@@ -10,12 +10,6 @@ import time
 from pathlib import Path
 
 from nezha.config import AgentConfig, ExecutorConfig, load_agent_config
-from nezha.engine import (
-    SessionEvent,
-    SessionResult,
-    build_options,
-    run_session,
-)
 from nezha.i18n import setup_locale, t
 from nezha.pipeline.io import (
     build_input_context,
@@ -25,6 +19,7 @@ from nezha.pipeline.io import (
 from nezha.pipeline.knowledge import load_agent_context, load_knowledge, load_project_context
 from nezha.pipeline.prompt_template import load_and_render, resolve_prompt_path
 from nezha.pipeline.security import create_security_hook
+from nezha.runtime.types import SessionEvent, SessionResult
 
 
 def _write_session_manifest(
@@ -115,6 +110,9 @@ async def run_single_round(
     agent_workspace: Path | None = None,
     mode: str | None = None,
     base_dir: Path | None = None,
+    runtime_override: str = "",
+    model_override: str = "",
+    env_override: dict[str, str] | None = None,
 ) -> SessionResult:
     """Run a single-round agent session in an isolated subprocess.
 
@@ -163,7 +161,12 @@ async def run_single_round(
         prompts_dir = project_root / prompts_dir
 
     # Merge env: executor global < agent-level
-    merged_env = {**executor_config.env, **agent_config.engine.env, **(env or {})}
+    merged_env = {
+        **executor_config.env,
+        **agent_config.engine.env,
+        **(env or {}),
+        **(env_override or {}),
+    }
 
     print(f"[session] Starting single-round session for {agent_config.agent.name}")
     print(f"[session] Workspace: {workspace}")
@@ -183,6 +186,8 @@ async def run_single_round(
         project_dir=project_dir,
         agent_workspace=agent_workspace,
         prompt_key=prompt_key,
+        runtime_override=runtime_override,
+        model_override=model_override,
         timeout=agent_config.engine.session_timeout,
     )
 
@@ -200,7 +205,9 @@ from pathlib import Path
 sys.path.insert(0, "{project_root}")
 
 from nezha.config import build_model_map_info, load_agent_config, load_executor_config
-from nezha.engine import SessionEvent, SessionResult, build_options, run_session
+from nezha.runtime import RuntimeContext, get_runtime
+from nezha.runtime.git_identity import apply_runtime_git_identity
+from nezha.runtime.types import SessionEvent, SessionResult
 from nezha.i18n import setup_locale, t
 from nezha.pipeline.io import build_input_context, ensure_output_dir, scan_input_files
 from nezha.pipeline.knowledge import load_agent_context, load_knowledge, load_project_context
@@ -214,7 +221,11 @@ async def main():
     if executor_config.locale:
         setup_locale(executor_config.locale)
     agent_config = load_agent_config("{agent_config_path}")
-    # Apply per-task model override (empty string = use agent default)
+    session_env = json.loads({session_env_json})
+    # Apply runtime/model override from model_map (empty string = use agent default)
+    _runtime_override = "{runtime_override}"
+    if _runtime_override:
+        agent_config.engine.runtime = _runtime_override
     _model_override = "{model_override}"
     if _model_override:
         agent_config.engine.model = _model_override
@@ -253,11 +264,37 @@ async def main():
         template_path = resolve_prompt_path(prompts_dir, "{prompt_path}", locale=executor_config.locale or "en")
         prompt = load_and_render(template_path, variables)
 
-    # Inject project knowledge from cwd (CLAUDE.md lives in the code repo)
-    knowledge = load_knowledge(cwd)
-    if knowledge:
-        prompt = knowledge + "\\n\\n" + prompt
-        print(f"[session] 注入 CLAUDE.md ({{len(knowledge)}} chars)")
+    runtime_name = (agent_config.engine.runtime or "").replace("-", "_").lower()
+
+    if runtime_name in {{"codex", "codex_cli"}}:
+        prompt = (
+            "## Runtime Writable Paths\\n\\n"
+            f"- Target repository cwd: {{cwd}}\\n"
+            f"- Feature workspace: {{workspace}}\\n\\n"
+            "The Codex CLI session is started with the feature workspace as an "
+            "additional writable directory. You may update task_list.json, "
+            "progress.md, and other feature workspace files when the task "
+            "requires status or progress updates. Use the exact absolute "
+            f"feature workspace path above; do not rewrite it as /workspace "
+            "or any other placeholder path.\\n\\n"
+            + prompt
+        )
+
+    # Inject project knowledge from cwd. Codex reads AGENTS.md from cwd itself,
+    # but older target repos may only have CLAUDE.md, so inject that as a
+    # compatibility fallback when AGENTS.md is absent.
+    knowledge = ""
+    if runtime_name in {{"codex", "codex_cli"}}:
+        if not (cwd / "AGENTS.md").is_file() and (cwd / "CLAUDE.md").is_file():
+            knowledge = load_knowledge(cwd)
+            if knowledge:
+                prompt = knowledge + "\\n\\n" + prompt
+                print(f"[session] 注入 CLAUDE.md fallback for Codex ({{len(knowledge)}} chars)")
+    else:
+        knowledge = load_knowledge(cwd)
+        if knowledge:
+            prompt = knowledge + "\\n\\n" + prompt
+            print(f"[session] 注入 CLAUDE.md ({{len(knowledge)}} chars)")
 
     # Inject agent cross-task memory (agent-context.md from agent workspace root)
     agent_ctx = load_agent_context(agent_workspace)
@@ -279,6 +316,7 @@ async def main():
     _manifest = {{
         "timestamp": _dt.now().isoformat(),
         "agent": agent_config.agent.name,
+        "runtime": agent_config.engine.runtime,
         "model": agent_config.engine.model,
         "cwd": str(cwd),
         "prompt_context": {{
@@ -305,15 +343,23 @@ async def main():
     allowed = agent_config.engine.security.get("allowed_commands")
     security_hook = create_security_hook(set(allowed) if allowed else None)
     # Merge env: executor global < agent-level, passed via subprocess environment
-    merged_env = {{**executor_config.env, **agent_config.engine.env}}
-    # Merge MCP servers: global (executor) < agent-level (agent wins)
-    options = build_options(
-        agent_config, cwd, security_hook, env=merged_env,
+    merged_env = {{**executor_config.env, **agent_config.engine.env, **session_env}}
+    # Claude's runtime adapter still owns build_options(...); Codex bypasses it.
+    runtime = get_runtime(agent_config.engine.runtime)
+    merged_env = apply_runtime_git_identity(merged_env, runtime_name)
+    runtime_context = RuntimeContext(
+        workspace=workspace,
+        cwd=cwd,
+        agent_config=agent_config,
+        executor_config=executor_config,
+        env=merged_env,
+        security_hook=security_hook,
         extra_mcp_servers=executor_config.mcp_servers or {{}},
+        timeout=agent_config.engine.session_timeout,
     )
 
     result = None
-    async for event in run_session(prompt, options):
+    async for event in runtime.run_session(prompt, runtime_context):
         if isinstance(event, SessionResult):
             result = event
         elif isinstance(event, SessionEvent):
@@ -405,6 +451,7 @@ def _run_isolated_session(
     project_dir: Path | None = None,
     agent_workspace: Path | None = None,
     prompt_key: str = "worker",
+    runtime_override: str = "",
     model_override: str = "",
     timeout: int = 3600,
 ) -> SessionResult:
@@ -429,7 +476,9 @@ def _run_isolated_session(
         prompts_dir=str(prompts_dir),
         prompt_path=prompt_path,
         prompt_key=prompt_key,
+        runtime_override=runtime_override,
         model_override=model_override,
+        session_env_json=repr(json.dumps(env or {})),
     )
 
     # Merge env: system env + custom env (custom overrides system)
@@ -788,7 +837,8 @@ async def run_multi_round(
     print(f"[session] Generated exec-plan.md")
 
     # --- DAG-driven execution ---
-    def _run_one_session(prompt_path: str, model_override: str = "",
+    def _run_one_session(prompt_path: str, runtime_override: str = "",
+                         model_override: str = "",
                          env_override: dict[str, str] | None = None):
         """Run a single isolated session — called by DAGEngine."""
         # Merge model_map env overrides into session env
@@ -804,6 +854,7 @@ async def run_multi_round(
             target=target,
             project_dir=project_dir,
             agent_workspace=agent_workspace,
+            runtime_override=runtime_override,
             model_override=model_override,
             timeout=agent_config.engine.session_timeout,
         )
@@ -835,10 +886,13 @@ async def run_multi_round(
         delay=delay,
         on_dag_event=_on_dag_event,
         verification_command=agent_config.verification.command,
+        verification_workspace=target or workspace,
         max_cost_usd=agent_config.session.max_cost_usd,
         max_sessions=agent_config.session.max_sessions,
         integration_prompt_path=integration_prompt_path,
         model_map=agent_config.engine.model_map or executor_config.model_map,
+        agent_strategy=executor_config.agent_strategies.get(agent_config.agent.name),
+        default_strategy=executor_config.default_strategy,
     )
 
     dag_result = await engine.run(
@@ -871,7 +925,8 @@ sys.path.insert(0, "{project_root}")
 
 from nezha.config import build_model_map_info, load_agent_config, load_executor_config
 from nezha.dag.handoff import generate_all_context, generate_handoff_context
-from nezha.engine import SessionEvent, SessionResult, build_options, run_session
+from nezha.runtime.claude_code import build_options, run_session
+from nezha.runtime.types import SessionEvent, SessionResult
 from nezha.pipeline.io import build_input_context, ensure_output_dir, scan_input_files
 from nezha.pipeline.knowledge import load_agent_context, load_knowledge, load_project_context
 from nezha.pipeline.prompt_composer import compose_prompt

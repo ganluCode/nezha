@@ -19,7 +19,14 @@ GLOBAL_CONFIG_DIR = Path.home() / ".nezha"
 GLOBAL_CONFIG_PATH = GLOBAL_CONFIG_DIR / "config.yaml"
 
 # Keys that are merged from global config into project executor.yaml
-_GLOBAL_MERGE_KEYS = ("locale", "timezone", "env", "model_map")
+_GLOBAL_MERGE_KEYS = (
+    "locale",
+    "timezone",
+    "env",
+    "default_strategy",
+    "agent_strategies",
+    "model_map",
+)
 
 
 def load_global_config() -> dict:
@@ -1297,16 +1304,16 @@ def cmd_init(project_dir: str):
     target = Path(project_dir).resolve()
 
     if target.exists():
-        # If directory already has executor.yaml, just regenerate Claude Code config
+        # If directory already has executor.yaml, just regenerate agent integrations
         if (target / "executor.yaml").exists():
-            claude_files = generate_claude_code_config(target)
-            if claude_files:
-                print(f"  Regenerated Claude Code config in {target}:")
-                for cf in claude_files:
+            integration_files = generate_claude_code_config(target)
+            if integration_files:
+                print(f"  Regenerated agent integration config in {target}:")
+                for cf in integration_files:
                     print(f"    {cf}")
                 print()
-                print("  You can now run `claude` in this directory.")
-                print("  Type `/` to see available skills.")
+                print("  You can now run `claude`, Codex, or OpenCode in this directory.")
+                print("  Type `/` in Claude Code, or use agent skills from .agents/skills.")
             return
         # Allow init into an empty directory
         existing = list(target.iterdir())
@@ -1339,8 +1346,8 @@ def cmd_init(project_dir: str):
     # Generate .env.example
     (target / ".env.example").write_text(_ENV_EXAMPLE_TEMPLATE, encoding="utf-8")
 
-    # Generate Claude Code integration (CLAUDE.md + .claude/skills/)
-    claude_files = generate_claude_code_config(target)
+    # Generate agent integrations (AGENTS.md, CLAUDE.md, .claude/skills/, .agents/skills/)
+    integration_files = generate_claude_code_config(target)
 
     name = Path(project_dir).name
     print(t('cli.init.initialized', path=target))
@@ -1348,6 +1355,7 @@ def cmd_init(project_dir: str):
     print("    executor.yaml")
     print("    agents/coding-agent.yaml")
     print("    agents/frontend-agent.yaml")
+    print("    agents/node-agent.yaml")
     print("    agents/planner-agent.yaml")
     print("    agents/product-agent.yaml")
     print("    agents/pm-agent.yaml")
@@ -1357,7 +1365,7 @@ def cmd_init(project_dir: str):
     print("    input/")
     print("    .env.example")
     print("    .gitignore")
-    for cf in claude_files:
+    for cf in integration_files:
         print(f"    {cf}")
 
     if applied_keys:
@@ -1397,11 +1405,12 @@ def cmd_init(project_dir: str):
     print(t('cli.init.next_cd', name=name))
     print(t('cli.init.next_run'))
     print()
-    print("  Claude Code integration:")
+    print("  Agent integrations:")
     print(f"    cd {name} && claude     # Launch Claude Code with skills")
     print("    Type / to see available skills (/overview, /prd, /review, ...)")
+    print("    Codex/OpenCode-compatible skills are available in .agents/skills/")
     print()
-    print("  To regenerate Claude Code config later:")
+    print("  To regenerate agent integration config later:")
     print(f"    nezha init {name}  # Re-run on existing project")
 
 
@@ -1664,7 +1673,7 @@ You are working in the project configuration directory.
 
 ## Project Knowledge
 
-@workspace/project/knowledge/CLAUDE.md
+@workspace/project/knowledge/{knowledge_file}
 
 ## Directory Structure
 
@@ -1678,6 +1687,7 @@ You are working in the project configuration directory.
 │   └── project/           # Shared project knowledge (standards, PRD templates)
 ├── input/                 # Input files for features (spec.md etc.)
 ├── .claude/skills/        # Claude Code skills (type / to see available skills)
+├── .agents/skills/        # Codex/OpenCode-compatible skills
 └── state/                 # Runtime state (executor status, logs)
 ```
 
@@ -2200,7 +2210,7 @@ _CLAUDE_MD_PROJECT_TEMPLATE_ZH = """\
 
 ## 项目知识
 
-@workspace/project/knowledge/CLAUDE.md
+@workspace/project/knowledge/{knowledge_file}
 
 ## 目录结构
 
@@ -2214,6 +2224,7 @@ _CLAUDE_MD_PROJECT_TEMPLATE_ZH = """\
 │   └── project/           # 共享项目知识（规范、PRD 模板）
 ├── input/                 # Feature 输入文件（spec.md 等）
 ├── .claude/skills/        # Claude Code 技能（输入 / 查看可用技能）
+├── .agents/skills/        # Codex/OpenCode 兼容技能
 └── state/                 # 运行时状态（执行状态、日志）
 ```
 
@@ -3041,9 +3052,10 @@ def _detect_locale(project_dir: Path) -> str:
 
 
 def generate_claude_code_config(project_dir: Path) -> list[str]:
-    """Generate CLAUDE.md and .claude/skills/ for Claude Code integration.
+    """Generate AGENTS.md, CLAUDE.md, and local skills for agent integrations.
 
     Locale-aware: generates Chinese versions when locale is zh_CN/zh.
+    The function name is kept for backward compatibility with older callers.
 
     Args:
         project_dir: Root of the nezha project (where executor.yaml lives).
@@ -3072,25 +3084,24 @@ def generate_claude_code_config(project_dir: Path) -> list[str]:
         no_agents_msg = "（暂无 agent 配置 — 请在 agents/ 下添加 YAML 文件）" if use_zh else "(no agent configs found yet — add YAML files to agents/)"
         agent_imports = no_agents_msg
 
-    # Generate CLAUDE.md (skip if user already has one with custom content)
-    claude_md_path = project_dir / "CLAUDE.md"
-    if claude_md_path.exists():
-        existing = claude_md_path.read_text(encoding="utf-8").strip()
-        # Only skip if it has substantial custom content (not our template or empty)
-        if existing and not any(m in existing for m in template_markers):
-            print(f"  Skipping CLAUDE.md (already exists with custom content)")
-        else:
-            claude_md_path.write_text(
-                claude_md_template.format(agent_imports=agent_imports),
-                encoding="utf-8",
-            )
-            generated.append("CLAUDE.md")
-    else:
-        claude_md_path.write_text(
-            claude_md_template.format(agent_imports=agent_imports),
-            encoding="utf-8",
+    def _write_root_context(filename: str, knowledge_file: str) -> None:
+        context_path = project_dir / filename
+        content = claude_md_template.format(
+            agent_imports=agent_imports,
+            knowledge_file=knowledge_file,
         )
-        generated.append("CLAUDE.md")
+        if context_path.exists():
+            existing = context_path.read_text(encoding="utf-8").strip()
+            # Only skip if it has substantial custom content (not our template or empty)
+            if existing and not any(m in existing for m in template_markers):
+                print(f"  Skipping {filename} (already exists with custom content)")
+                return
+        context_path.write_text(content, encoding="utf-8")
+        generated.append(filename)
+
+    # Generate runtime-neutral AGENTS.md for Codex and legacy CLAUDE.md for Claude Code.
+    _write_root_context("AGENTS.md", "AGENTS.md")
+    _write_root_context("CLAUDE.md", "CLAUDE.md")
 
     # Generate .claude/settings.json — pre-authorize commands used in skills
     settings_path = project_dir / ".claude" / "settings.json"
@@ -3132,16 +3143,19 @@ def generate_claude_code_config(project_dir: Path) -> list[str]:
         except Exception:
             pass  # Don't break on malformed settings
 
-    # Generate .claude/skills/
-    skills_dir = project_dir / ".claude" / "skills"
-    skills_dir.mkdir(parents=True, exist_ok=True)
+    # Generate local skills for Claude Code and Agent Skills-compatible tools.
+    # Codex in this environment discovers project skills from .agents/skills;
+    # OpenCode also documents .agents/skills as a project-compatible path.
+    for skills_root in (".claude/skills", ".agents/skills"):
+        skills_dir = project_dir / skills_root
+        skills_dir.mkdir(parents=True, exist_ok=True)
 
-    for skill_name, skill_en, skill_zh in _SKILLS:
-        skill_content = skill_zh if use_zh else skill_en
-        skill_path = skills_dir / skill_name / "SKILL.md"
-        skill_path.parent.mkdir(parents=True, exist_ok=True)
-        skill_path.write_text(skill_content, encoding="utf-8")
-        generated.append(f".claude/skills/{skill_name}/SKILL.md")
+        for skill_name, skill_en, skill_zh in _SKILLS:
+            skill_content = skill_zh if use_zh else skill_en
+            skill_path = skills_dir / skill_name / "SKILL.md"
+            skill_path.parent.mkdir(parents=True, exist_ok=True)
+            skill_path.write_text(skill_content, encoding="utf-8")
+            generated.append(f"{skills_root}/{skill_name}/SKILL.md")
 
     return generated
 
@@ -3153,6 +3167,7 @@ def cmd_project_init(config_path: str = "executor.yaml"):
       - project.yaml   (name, description, repo)
       - tech_stack.yaml (empty template)
       - standards/.gitkeep
+      - knowledge/AGENTS.md
       - knowledge/CLAUDE.md
       - roadmap.md
 
@@ -3183,6 +3198,7 @@ def cmd_project_init(config_path: str = "executor.yaml"):
     (project_dir / "project.yaml").write_text(_PROJECT_YAML_TEMPLATE, encoding="utf-8")
     (project_dir / "tech_stack.yaml").write_text(_TECH_STACK_YAML_TEMPLATE, encoding="utf-8")
     (project_dir / "standards" / ".gitkeep").write_text("", encoding="utf-8")
+    (project_dir / "knowledge" / "AGENTS.md").write_text(_CLAUDE_MD_TEMPLATE, encoding="utf-8")
     (project_dir / "knowledge" / "CLAUDE.md").write_text(_CLAUDE_MD_TEMPLATE, encoding="utf-8")
     (project_dir / "roadmap.md").write_text(_ROADMAP_MD_TEMPLATE, encoding="utf-8")
     (project_dir / "quality.md").write_text(_QUALITY_MD_TEMPLATE, encoding="utf-8")
@@ -3194,6 +3210,7 @@ def cmd_project_init(config_path: str = "executor.yaml"):
     print("    project.yaml")
     print("    tech_stack.yaml")
     print("    standards/.gitkeep")
+    print("    knowledge/AGENTS.md")
     print("    knowledge/CLAUDE.md")
     print("    roadmap.md")
     print("    quality.md")
@@ -3754,4 +3771,3 @@ def cmd_dashboard(
     if open_browser:
         import webbrowser
         webbrowser.open(str(written))
-

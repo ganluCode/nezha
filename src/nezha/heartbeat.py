@@ -5,10 +5,13 @@ import json
 import os
 import signal
 import sys
+import tempfile
 import time
 from pathlib import Path
 
-from nezha.config import HeartbeatConfig, HeartbeatModelEntry
+from nezha.config import AgentConfig, AgentMeta, EngineConfig, HeartbeatConfig, HeartbeatModelEntry
+from nezha.runtime import RuntimeContext, get_runtime
+from nezha.runtime.types import SessionResult
 
 _HEARTBEAT_PROMPT = "hi"
 _PID_FILE = ".heartbeat.pid"
@@ -24,16 +27,19 @@ def _is_claude_model(model: str) -> bool:
 
 async def _ping_model(entry: HeartbeatModelEntry) -> str:
     """Send a single 'hi' to a model. Returns 'ok' or error message."""
+    runtime = (entry.runtime or "").replace("-", "_").lower()
     model = entry.model
     env = entry.env or {}
 
     try:
-        if _is_claude_model(model):
+        if runtime in {"claude", "claude_code"} or (not runtime and _is_claude_model(model)):
             return await _ping_sdk(model, env)
-        elif env.get("OPENAI_BASE_URL") or env.get("OPENAI_API_KEY"):
+        elif runtime in {"codex", "codex_cli"}:
+            return await _ping_runtime(runtime, model, env)
+        elif runtime == "openai" or env.get("OPENAI_BASE_URL") or env.get("OPENAI_API_KEY"):
             return await _ping_openai(model, env)
         else:
-            return await _ping_sdk(model, env)
+            return "error: heartbeat model runtime not configured"
     except Exception as e:
         return f"error: {e}"
 
@@ -73,6 +79,37 @@ async def _ping_openai(model: str, env: dict) -> str:
         max_tokens=5,
         messages=[{"role": "user", "content": _HEARTBEAT_PROMPT}],
     )
+    return "ok"
+
+
+async def _ping_runtime(runtime_name: str, model: str, env: dict) -> str:
+    """Ping through a configured runtime adapter."""
+    runtime = get_runtime(runtime_name)
+    with tempfile.TemporaryDirectory(prefix="nezha-heartbeat-") as tmp:
+        workspace = Path(tmp)
+        agent_config = AgentConfig(
+            agent=AgentMeta(name="heartbeat", category="management"),
+            engine=EngineConfig(
+                runtime=runtime_name,
+                model=model,
+                env=env,
+                max_turns=1,
+                security={"sandbox": "workspace-write"},
+                session_timeout=120,
+            ),
+        )
+        context = RuntimeContext(
+            workspace=workspace,
+            cwd=workspace,
+            agent_config=agent_config,
+            env=env,
+            timeout=120,
+        )
+        async for event in runtime.run_session(_HEARTBEAT_PROMPT, context):
+            if isinstance(event, SessionResult):
+                if event.status == "completed":
+                    return "ok"
+                return f"error: {event.error or event.status}"
     return "ok"
 
 

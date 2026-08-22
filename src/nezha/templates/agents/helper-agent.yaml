@@ -11,7 +11,8 @@ agent:
   description: "统一控制面板 agent，分析代码、解答问题、提供建议，同时可执行 feature/agent/git 等操作命令"
 
 engine:
-  model: "claude-opus-4-6"
+  # runtime/model are resolved from executor.yaml default_strategy/model_map.
+  # You may set them here to force this agent to a specific backend.
   env: {}
   max_turns: 50
   tools:
@@ -21,6 +22,11 @@ engine:
     - Grep
     - Bash
   security:
+    # Codex CLI: filesystem sandbox. Recommended default for coding/workspace tasks.
+    # Values: read-only | workspace-write | danger-full-access
+    sandbox: workspace-write
+    # Claude Code only: enforced through PreToolUse hook.
+    # Codex CLI does not enforce this command allowlist.
     allowed_commands:
       - ls
       - cat

@@ -8,6 +8,7 @@ import pytest
 
 from nezha.config import GitConfig, load_agent_config
 from nezha.executor import _check_coding_safety, _git_commit, _git_push, _resolve_target
+from nezha.runtime.git_identity import apply_runtime_git_identity, runtime_git_identity
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +93,18 @@ class TestCheckCodingSafety:
 # ---------------------------------------------------------------------------
 
 class TestGitCommit:
+    def test_runtime_git_identity_for_codex(self):
+        assert runtime_git_identity("codex_cli") == ("codex", "codex@nezha.local")
+
+    def test_apply_runtime_git_identity_preserves_author(self):
+        env = apply_runtime_git_identity(
+            {"GIT_AUTHOR_NAME": "ganluCode"},
+            "codex_cli",
+        )
+        assert env["GIT_AUTHOR_NAME"] == "ganluCode"
+        assert env["GIT_COMMITTER_NAME"] == "codex"
+        assert env["GIT_COMMITTER_EMAIL"] == "codex@nezha.local"
+
     def test_stages_and_commits(self, tmp_path):
         """Runs git add -A then git commit."""
         with patch("nezha.executor.subprocess.run") as mock_run:
@@ -105,6 +118,20 @@ class TestGitCommit:
             ]
             _git_commit(tmp_path, "2026-02-19-11-18-53")
             assert mock_run.call_count == 3
+
+    def test_commit_uses_runtime_committer(self, tmp_path):
+        """git commit env uses runtime-aware committer."""
+        with patch("nezha.executor.subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                MagicMock(returncode=0),
+                MagicMock(returncode=1),
+                MagicMock(returncode=0),
+            ]
+            _git_commit(tmp_path, "task-id", runtime="codex_cli")
+            commit_call = mock_run.call_args_list[2]
+            env = commit_call.kwargs["env"]
+            assert env["GIT_COMMITTER_NAME"] == "codex"
+            assert env["GIT_COMMITTER_EMAIL"] == "codex@nezha.local"
 
     def test_commit_message_includes_task_id(self, tmp_path):
         """Commit message includes the task ID."""

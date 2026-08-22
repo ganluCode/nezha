@@ -3,11 +3,15 @@
 import asyncio
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 
 from nezha.config import (
     AgentConfig,
+    AgentMeta,
+    EngineConfig,
     ExecutorConfig,
+    RuntimeStrategy,
     load_agent_config,
     load_executor_config,
     resolve_workspace,
@@ -21,6 +25,9 @@ from nezha.guards import GuardFactory  # noqa: triggers self-registration
 from nezha.guards.base import GuardChain
 from nezha.i18n import t
 from nezha.pipeline.session import run_multi_round, run_single_round, run_vibe_session
+from nezha.runtime import RuntimeContext, get_runtime
+from nezha.runtime.git_identity import apply_runtime_git_identity
+from nezha.runtime.types import SessionResult
 from nezha.scheduler import SchedulerFactory  # noqa: triggers self-registration
 from nezha.feature_queue import FileFeatureQueue, FeatureStatus
 from nezha.tools import create_tool
@@ -59,6 +66,66 @@ def _build_event_bus(executor_config: ExecutorConfig, base_dir: Path,
     bus.register(TraceWriterHandler(state_dir))
 
     return bus
+
+
+def _has_runtime_strategy(strategy: RuntimeStrategy | None) -> bool:
+    return bool(
+        strategy
+        and (
+            strategy.runtime
+            or strategy.model
+            or strategy.env
+            or strategy.api_type
+        )
+    )
+
+
+def _engine_strategy(agent_config: AgentConfig) -> RuntimeStrategy:
+    return RuntimeStrategy(
+        runtime=agent_config.engine.runtime,
+        model=agent_config.engine.model,
+        env=agent_config.engine.env,
+        api_type=agent_config.engine.api_type,
+    )
+
+
+def _resolve_default_session_strategy(
+    executor_config: ExecutorConfig,
+    agent_config: AgentConfig,
+) -> RuntimeStrategy:
+    """Resolve fallback strategy for non-DAG sessions."""
+    agent_name = agent_config.agent.name
+    strategy = executor_config.agent_strategies.get(agent_name)
+    if _has_runtime_strategy(strategy):
+        return strategy
+    agent_strategy = _engine_strategy(agent_config)
+    if agent_strategy.runtime or agent_strategy.model:
+        return agent_strategy
+    if _has_runtime_strategy(executor_config.default_strategy):
+        return executor_config.default_strategy
+    return agent_strategy
+
+
+def _resolve_commit_runtime(
+    executor_config: ExecutorConfig,
+    agent_config: AgentConfig,
+) -> str:
+    """Resolve a best-effort runtime label for git committer identity."""
+    strategy = executor_config.agent_strategies.get(agent_config.agent.name)
+    if strategy and strategy.runtime:
+        return strategy.runtime
+    if agent_config.engine.runtime:
+        return agent_config.engine.runtime
+    runtimes = {
+        entry.runtime
+        for entry in (executor_config.model_map or {}).values()
+        if getattr(entry, "runtime", "")
+    }
+    if len(runtimes) == 1:
+        return next(iter(runtimes))
+    if executor_config.default_strategy.runtime:
+        return executor_config.default_strategy.runtime
+    return ""
 
 
 def _resolve_target(
@@ -136,9 +203,17 @@ def _check_coding_safety(target: Path, env: dict[str, str] | None = None) -> Non
         )
 
 
-def _git_commit(target: Path, task_id: str, env: dict[str, str] | None = None) -> None:
+def _git_commit(
+    target: Path,
+    task_id: str,
+    env: dict[str, str] | None = None,
+    runtime: str = "",
+) -> None:
     """Stage all changes and commit with a task-based message."""
-    git_env = _build_git_env(env)
+    git_env = _build_git_env(
+        apply_runtime_git_identity(env or {}, runtime)
+        if runtime else env
+    )
     subprocess.run(["git", "add", "-A"], cwd=target, check=False, env=git_env)
     result = subprocess.run(
         ["git", "diff", "--cached", "--quiet"],
@@ -336,8 +411,9 @@ async def _run_planner_for_task_list(
             mode=None,
         )
     else:
-        # single_round: use Claude Code SDK subprocess
+        # single_round: use configured runtime subprocess
         from nezha.pipeline.session import run_single_round
+        strategy = _resolve_default_session_strategy(executor_config, planner_config)
         result = await run_single_round(
             executor_config=executor_config,
             agent_config=planner_config,
@@ -347,6 +423,9 @@ async def _run_planner_for_task_list(
             project_dir=project_dir,
             agent_workspace=feature_workspace,
             base_dir=base_dir,
+            runtime_override=strategy.runtime,
+            model_override=strategy.model,
+            env_override=strategy.env,
         )
 
     if result.status == "error":
@@ -414,8 +493,9 @@ async def _ai_judge_continue(
     next_feature_title: str,
     report_path: Path | None,
     env: dict[str, str],
-    model: str = "claude-haiku-4-5-20251001",
-    api_type: str = "anthropic",
+    model: str = "",
+    api_type: str = "",
+    strategy: RuntimeStrategy | None = None,
 ) -> bool:
     """Use LLM to judge whether to continue executing the next feature.
 
@@ -452,10 +532,21 @@ async def _ai_judge_continue(
 
     print(f"[ai_judge] Evaluating: '{failed_feature_id}' failed → "
           f"can '{next_feature_title}' proceed?")
-    print(f"[ai_judge] Using model={model}, api_type={api_type}")
+    if strategy and strategy.runtime:
+        print(
+            f"[ai_judge] Using runtime={strategy.runtime}, "
+            f"model={strategy.model}"
+        )
+    else:
+        print(f"[ai_judge] Using model={model}, api_type={api_type}")
 
     try:
-        if api_type == "openai":
+        if strategy and strategy.runtime:
+            answer = await _judge_call_runtime(prompt, strategy, env)
+        elif not model or not api_type:
+            print("[ai_judge] No judge strategy configured, defaulting to STOP")
+            return False
+        elif api_type == "openai":
             answer = await _judge_call_openai(prompt, model, env)
         else:
             answer = await _judge_call_anthropic(prompt, model, env)
@@ -469,6 +560,43 @@ async def _ai_judge_continue(
 
 def _is_claude_model(model: str) -> bool:
     return model.startswith("claude-")
+
+
+async def _judge_call_runtime(
+    prompt: str,
+    strategy: RuntimeStrategy,
+    env: dict[str, str],
+) -> str:
+    """Judge call through a configured runtime adapter."""
+    runtime = get_runtime(strategy.runtime)
+    merged_env = {**env, **(strategy.env or {})}
+    with tempfile.TemporaryDirectory(prefix="nezha-ai-judge-") as tmp:
+        workspace = Path(tmp)
+        agent_config = AgentConfig(
+            agent=AgentMeta(name="ai-judge", category="management"),
+            engine=EngineConfig(
+                runtime=strategy.runtime,
+                model=strategy.model,
+                env=strategy.env,
+                max_turns=1,
+                security={"sandbox": "workspace-write"},
+                session_timeout=300,
+            ),
+        )
+        context = RuntimeContext(
+            workspace=workspace,
+            cwd=workspace,
+            agent_config=agent_config,
+            env=merged_env,
+            timeout=300,
+        )
+        result_text = ""
+        async for event in runtime.run_session(prompt, context):
+            if isinstance(event, SessionResult):
+                if event.status != "completed":
+                    raise RuntimeError(event.error or f"judge runtime failed: {event.status}")
+                result_text = event.result_text or ""
+        return result_text
 
 
 async def _judge_call_anthropic(prompt: str, model: str, env: dict) -> str:
@@ -1191,7 +1319,12 @@ async def execute_agent(
                         # Auto-commit fix
                         if effective_target and agent_config.git.auto_commit:
                             try:
-                                _git_commit(effective_target, f"{task.id if task else 'fix'}-integration-fix-{cycle + 1}", env=merged_env)
+                                _git_commit(
+                                    effective_target,
+                                    f"{task.id if task else 'fix'}-integration-fix-{cycle + 1}",
+                                    env=merged_env,
+                                    runtime=_resolve_commit_runtime(executor_config, agent_config),
+                                )
                             except Exception:
                                 pass
 
@@ -1208,7 +1341,7 @@ async def execute_agent(
                         print(t('executor.integration_test.final_pass',
                                 cycles=cycle_result.cycles_run))
 
-            else:
+            if session_mode == "single_round":
                 session_counter[0] += 1
                 await event_bus.emit(Event.create(
                     EventType.SESSION_STARTED,
@@ -1218,6 +1351,7 @@ async def execute_agent(
                     mode=mode or "single_round",
                 ))
 
+                strategy = _resolve_default_session_strategy(executor_config, agent_config)
                 result = await run_single_round(
                     executor_config, agent_config, feature_workspace,
                     on_event=_on_session_event,
@@ -1227,6 +1361,9 @@ async def execute_agent(
                     agent_workspace=workspace,
                     mode=mode,
                     base_dir=base_dir,
+                    runtime_override=strategy.runtime,
+                    model_override=strategy.model,
+                    env_override=strategy.env,
                 )
                 print(t('executor.session.result', status=result.status))
                 if result.cost_usd:
@@ -1304,7 +1441,12 @@ async def execute_agent(
                 # Auto-commit if configured
                 if effective_target and agent_config.git.auto_commit:
                     try:
-                        _git_commit(effective_target, task.id, env=merged_env)
+                        _git_commit(
+                            effective_target,
+                            task.id,
+                            env=merged_env,
+                            runtime=_resolve_commit_runtime(executor_config, agent_config),
+                        )
                     except Exception as e:
                         print(t('executor.git.commit_failed', error=e))
 
@@ -1397,13 +1539,31 @@ async def execute_agent(
         if not next_feature:
             return False  # No next feature, stop anyway
 
-        # Resolve judge model: model_map.low → judge_model (fallback)
+        # Resolve judge strategy: scheduler.judge_strategy → model_map.low
+        # → default_strategy → legacy judge_model/judge_api_type.
         low_entry = executor_config.model_map.get("low")
-        if low_entry and low_entry.model:
-            judge_model = low_entry.model
-            judge_api_type = "openai" if not _is_claude_model(low_entry.model) else "anthropic"
-            judge_env = {**merged_env, **low_entry.env, **executor_config.scheduler.judge_env}
+        if executor_config.scheduler.judge_strategy.runtime:
+            judge_strategy = executor_config.scheduler.judge_strategy
+            judge_model = judge_strategy.model
+            judge_api_type = judge_strategy.api_type
+            judge_env = {**merged_env, **executor_config.scheduler.judge_env}
+        elif low_entry and (low_entry.runtime or low_entry.model):
+            judge_strategy = RuntimeStrategy(
+                runtime=low_entry.runtime,
+                model=low_entry.model,
+                env=low_entry.env,
+                api_type=low_entry.api_type,
+            )
+            judge_model = judge_strategy.model
+            judge_api_type = judge_strategy.api_type
+            judge_env = {**merged_env, **executor_config.scheduler.judge_env}
+        elif _has_runtime_strategy(executor_config.default_strategy):
+            judge_strategy = executor_config.default_strategy
+            judge_model = judge_strategy.model
+            judge_api_type = judge_strategy.api_type
+            judge_env = {**merged_env, **executor_config.scheduler.judge_env}
         else:
+            judge_strategy = None
             judge_model = executor_config.scheduler.judge_model
             judge_api_type = executor_config.scheduler.judge_api_type
             judge_env = {**merged_env, **executor_config.scheduler.judge_env}
@@ -1416,6 +1576,7 @@ async def execute_agent(
             env=judge_env,
             model=judge_model,
             api_type=judge_api_type,
+            strategy=judge_strategy,
         )
 
     # Create scheduler and run

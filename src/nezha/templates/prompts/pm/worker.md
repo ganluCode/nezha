@@ -42,9 +42,10 @@ Create the following files under `{{project_dir}}/`:
    - Create standard files (e.g., `coding.md`, `api.md`) based on task.md instructions
    - If no specific standards are provided, create a `.gitkeep` placeholder
 
-4. **`knowledge/CLAUDE.md`** — Project knowledge for AI agents
+4. **`knowledge/AGENTS.md`** — Project knowledge for AI agents
    - Include project-specific conventions, patterns, and rules from task.md
    - This file is automatically injected into all agent sessions
+   - If `knowledge/CLAUDE.md` exists, keep it aligned as a legacy mirror
 
 5. **`roadmap.md`** — Project roadmap
    ```markdown
@@ -130,12 +131,14 @@ Steps:
 Steps:
 1. Read the existing files before making changes:
    - Read `{{project_dir}}/standards/` directory contents
-   - Read `{{project_dir}}/knowledge/CLAUDE.md`
+   - Read `{{project_dir}}/knowledge/AGENTS.md`
+   - Read `{{project_dir}}/knowledge/CLAUDE.md` if it exists
    - Read `{{project_dir}}/roadmap.md`
 
 2. Apply the updates described in task.md:
    - For standards updates: edit or create files in `{{project_dir}}/standards/`
-   - For knowledge updates: edit `{{project_dir}}/knowledge/CLAUDE.md`
+   - For knowledge updates: edit `{{project_dir}}/knowledge/AGENTS.md`
+   - If `{{project_dir}}/knowledge/CLAUDE.md` exists, mirror the same factual updates there
    - For roadmap updates: edit `{{project_dir}}/roadmap.md`
 
 3. Update `{{project_dir}}/roadmap.md` to reflect the changes if applicable.

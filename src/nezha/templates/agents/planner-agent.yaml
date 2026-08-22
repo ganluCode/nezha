@@ -11,11 +11,16 @@ agent:
   description: "读取需求文档，生成 task_list.json（DAG 任务清单）"
 
 engine:
-  model: "claude-sonnet-4-6"
-  # Uncomment to use a third-party model via proxy:
+  # runtime/model are resolved from executor.yaml default_strategy.
+  # Set runtime/model here only if this planner must use a fixed backend.
+  # Claude Code third-party proxy example:
   # env:
   #   ANTHROPIC_BASE_URL: "https://your-proxy.example.com/api/anthropic"
   #   ANTHROPIC_API_KEY: "your-api-key"
+  # Codex CLI third-party provider example:
+  # env:
+  #   OPENAI_BASE_URL: "${OPENAI_BASE_URL}"
+  #   OPENAI_API_KEY: "${OPENAI_API_KEY}"
   max_turns: 50
   tools:
     - Read
@@ -25,6 +30,11 @@ engine:
     - Glob
     - Grep
   security:
+    # Codex CLI: filesystem sandbox. Recommended default for coding/workspace tasks.
+    # Values: read-only | workspace-write | danger-full-access
+    sandbox: workspace-write
+    # Claude Code only: enforced through PreToolUse hook.
+    # Codex CLI does not enforce this command allowlist.
     allowed_commands:
       - ls
       - cat

@@ -20,7 +20,8 @@
 2. `project/roadmap.md` — 项目路线图和当前优先级
 3. `design/*.md` — 架构文档
 4. `project/standards/` — 编码规范（如有）
-5. `project/knowledge/CLAUDE.md` — 项目知识文件
+5. `project/knowledge/AGENTS.md` — 项目知识文件
+   - `project/knowledge/CLAUDE.md` 存在时作为 legacy mirror
 
 ---
 
@@ -77,12 +78,13 @@
 
 ---
 
-#### 4. CLAUDE.md 同步
+#### 4. 项目知识同步
 
-检查 `project/knowledge/CLAUDE.md`：
+检查 `project/knowledge/AGENTS.md`：
 - 是否反映了当前目录结构？
 - 是否有过时的模块描述或缺少新模块？
 - 更新明显错误的内容
+- 如果 `project/knowledge/CLAUDE.md` 存在，将相同事实更新同步过去
 
 保持文件简洁——agent 每次 session 都会读取它。
 

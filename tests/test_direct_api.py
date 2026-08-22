@@ -363,9 +363,9 @@ class TestExecutorDirectBranch:
 
         config = load_agent_config(config_path)
         assert config.session.mode in ("direct", "single_round")
-        assert config.engine.api_type == "anthropic"
+        assert config.engine.api_type == ""
 
     def test_engine_config_default_api_type(self):
-        """EngineConfig defaults to api_type='anthropic'."""
+        """EngineConfig does not default to a platform-specific API type."""
         cfg = EngineConfig()
-        assert cfg.api_type == "anthropic"
+        assert cfg.api_type == ""

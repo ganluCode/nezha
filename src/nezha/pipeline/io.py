@@ -5,6 +5,15 @@ from pathlib import Path
 from nezha.config import AgentConfig
 
 
+_DEFAULT_IGNORED_INPUT_FILES = {
+    ".codex-last-message.txt",
+    ".dag_context.json",
+    ".session_manifest.json",
+    "exec-plan.md",
+    "execution-report.md",
+}
+
+
 def scan_input_files(agent_config: AgentConfig, workspace: Path) -> list[Path]:
     """Scan the input directory for files the agent should read.
 
@@ -28,7 +37,11 @@ def scan_input_files(agent_config: AgentConfig, workspace: Path) -> list[Path]:
     # Otherwise, list all files in input directory
     return sorted(
         f for f in input_dir.iterdir()
-        if f.is_file() and f.name != ".gitkeep"
+        if (
+            f.is_file()
+            and f.name != ".gitkeep"
+            and f.name not in _DEFAULT_IGNORED_INPUT_FILES
+        )
     )
 
 

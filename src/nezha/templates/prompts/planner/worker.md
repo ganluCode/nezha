@@ -33,6 +33,7 @@ Format: JSON array where each item has:
 ### COMPLEXITY GRADING
 
 Every task MUST have a `complexity` field. The system will automatically map complexity to the appropriate model via `model_map` configuration. Grade each task by the skill level needed:
+Do NOT include a `model` or `runtime` field in tasks. Runtime/model selection is an executor-level policy.
 
 | Complexity | When to use |
 |------------|-------------|

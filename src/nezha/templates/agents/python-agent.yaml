@@ -9,7 +9,8 @@ agent:
   description: "Python coding agent — implements features, fixes bugs, writes tests (pytest + TDD)"
 
 engine:
-  model: "claude-sonnet-4-6"
+  # runtime/model are resolved from executor.yaml default_strategy/model_map.
+  # You may set them here to force this agent to a specific backend.
   max_turns: 200
   tools:
     - Read
@@ -19,6 +20,11 @@ engine:
     - Glob
     - Grep
   security:
+    # Codex CLI: filesystem sandbox. Recommended default for coding/workspace tasks.
+    # Values: read-only | workspace-write | danger-full-access
+    sandbox: workspace-write
+    # Claude Code only: enforced through PreToolUse hook.
+    # Codex CLI does not enforce this command allowlist.
     allowed_commands:
       # common utilities
       - ls

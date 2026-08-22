@@ -1,0 +1,106 @@
+# =============================================================================
+# Node Agent — Node.js / JavaScript / TypeScript coding agent
+# Modify workspace.path and target to match your project.
+# =============================================================================
+
+agent:
+  name: "node-agent"
+  category: "coding"
+  description: "Node.js coding agent — implements backend, CLI, library, and test tasks"
+
+engine:
+  # runtime/model are resolved from executor.yaml default_strategy/model_map.
+  # You may set them here to force this agent to a specific backend.
+  max_turns: 200
+  tools:
+    - Read
+    - Write
+    - Edit
+    - Bash
+    - Glob
+    - Grep
+  security:
+    # Codex CLI: filesystem sandbox. Recommended default for coding/workspace tasks.
+    # Values: read-only | workspace-write | danger-full-access
+    sandbox: workspace-write
+    # Claude Code only: enforced through PreToolUse hook.
+    # Codex CLI does not enforce this command allowlist.
+    allowed_commands:
+      # common utilities
+      - ls
+      - cat
+      - find
+      - grep
+      - head
+      - tail
+      - wc
+      - pwd
+      - mkdir
+      - cp
+      - rm
+      - mv
+      - chmod
+      - curl
+      - git
+      # Node.js ecosystem
+      - node
+      - npm
+      - npx
+      - pnpm
+      - yarn
+      - tsc
+      - eslint
+      - prettier
+      - jest
+      - vitest
+      - tsx
+      - ts-node
+      # process management
+      - ps
+      - lsof
+      - sleep
+      - pkill
+
+session:
+  mode: "multi_round"
+  compose:
+    worker:
+      base: "coding/base.md"
+      sections:
+        - phases/context-acquisition
+        - stacks/node
+        - phases/tdd
+        - phases/regression
+        - phases/commit-rules
+    initializer:
+      base: "coding/base.md"
+      sections:
+        - phases/context-acquisition
+        - stacks/node
+
+verification:
+  command: "npm test"
+
+git:
+  branch_per_task: true
+  use_worktree: true
+  base_branch: "main"
+  auto_commit: true
+  auto_push: false
+
+pipeline:
+  # Optional: run broader checks after all DAG tasks pass
+  # post_task_test:
+  #   enabled: true
+  #   command: "npm test && npm run build"
+  #   max_cycles: 3
+  #   timeout: 600
+
+workspace:
+  path: "./workspace/node-agent"
+
+# target is set project-wide in executor.yaml.
+# Uncomment below to override for this agent only:
+# target: "/path/to/your/node-project"
+# For monorepo: set target_scope to your package subdirectory.
+# target_scope: "packages/api"

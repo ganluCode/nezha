@@ -155,6 +155,19 @@ class TestLoadProjectContextFullDir:
         assert "## Project Knowledge" in result
         assert "Be helpful" in result
 
+    def test_agents_md_takes_priority_over_claude_md(self, full_project_dir):
+        (full_project_dir / "knowledge" / "AGENTS.md").write_text(
+            "# Project Knowledge\n\nUse runtime-neutral guidance.",
+            encoding="utf-8",
+        )
+        result = load_project_context(full_project_dir)
+        assert "Use runtime-neutral guidance" in result
+        assert "Be helpful" not in result
+
+    def test_claude_md_remains_legacy_fallback(self, full_project_dir):
+        result = load_project_context(full_project_dir)
+        assert "Be helpful" in result
+
     def test_full_dir_has_roadmap(self, full_project_dir):
         result = load_project_context(full_project_dir)
         assert "## Roadmap" in result
